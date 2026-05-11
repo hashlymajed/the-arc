@@ -9,7 +9,7 @@ DEFAULT_VAULT_PATH  = (
     or (_OBSIDIAN_PATH if os.path.isdir(_OBSIDIAN_PATH) else _BUNDLED_PATH)
 )
 DEFAULT_VECTOR_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'chroma_db')
-EMBEDDING_MODEL     = "models/gemini-embedding-001"
+EMBEDDING_MODEL     = os.environ.get('EMBEDDING_MODEL', 'models/text-embedding-004')
 META_PATH           = os.path.join(DEFAULT_VECTOR_PATH, 'db_meta.json')
 
 def _read_meta(vector_path: str) -> dict:
@@ -67,7 +67,25 @@ def get_store(settings: dict):
     else:
         return _build_store(vault_path, vector_path, api_key)
 
-def _build_store(vault_path: str, vector_path: str, api_key: str):
+def _add_with_retry(store, batch, *, max_attempts: int = 6):
+    delay = 5.0
+    for attempt in range(1, max_attempts + 1):
+        try:
+            store.add_documents(batch)
+            return
+        except Exception as e:
+            msg = str(e)
+            is_rate = ('429' in msg or 'RESOURCE_EXHAUSTED' in msg
+                       or 'quota' in msg.lower() or 'rate' in msg.lower())
+            if not is_rate or attempt == max_attempts:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, 60.0)
+
+
+def _build_store(vault_path: str, vector_path: str, api_key: str,
+                 batch_size: int = 50, batch_pause: float = 0.5):
+    import shutil
     from langchain_community.document_loaders import DirectoryLoader, TextLoader
     from langchain_text_splitters import RecursiveCharacterTextSplitter
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -90,8 +108,18 @@ def _build_store(vault_path: str, vector_path: str, api_key: str):
     embeddings = GoogleGenerativeAIEmbeddings(
         model=EMBEDDING_MODEL, task_type="retrieval_document"
     )
+
+    # Wipe any prior on-disk store so we don't accumulate stale chunks
+    if os.path.isdir(vector_path):
+        shutil.rmtree(vector_path, ignore_errors=True)
     os.makedirs(vector_path, exist_ok=True)
-    store = Chroma.from_documents(chunks, embedding=embeddings, persist_directory=vector_path)
+
+    store = Chroma(persist_directory=vector_path, embedding_function=embeddings)
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i:i + batch_size]
+        _add_with_retry(store, batch)
+        if i + batch_size < len(chunks):
+            time.sleep(batch_pause)
 
     meta = {"vault_mtime": _vault_mtime(vault_path), "built_at": time.time(), "embedding_model": EMBEDDING_MODEL, "doc_count": len(docs), "chunk_count": len(chunks)}
     json.dump(meta, open(os.path.join(vector_path, 'db_meta.json'), 'w'))

@@ -461,7 +461,12 @@ async def api_vault_rebuild():
         )
         return {'ok': True, 'message': 'Index rebuilt successfully'}
     except Exception as e:
-        return JSONResponse({'ok': False, 'message': str(e)}, status_code=500)
+        msg = str(e)
+        if '429' in msg or 'RESOURCE_EXHAUSTED' in msg or 'quota' in msg.lower():
+            msg = ("Gemini embedding quota hit. The free tier for gemini-embedding-001 "
+                   "is ~5 requests/minute. Wait a few minutes and try again, or enable "
+                   "billing in Google AI Studio for higher limits.")
+        return JSONResponse({'ok': False, 'message': msg}, status_code=500)
 
 @app.get("/api/news/{article_id}")
 async def api_get_news(article_id: int):

@@ -13,7 +13,6 @@ BASE_DIR   = Path(__file__).parent
 TEMPLATES  = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 app = FastAPI(title="The Arc", docs_url=None, redoc_url=None)
-app.add_middleware(SessionMiddleware, secret_key=os.getenv('SECRET_KEY', 'dev-secret-please-change'))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 _PUBLIC = {"/login", "/logout"}
@@ -26,6 +25,9 @@ async def require_auth(request: Request, call_next):
     if not request.session.get("authenticated"):
         return RedirectResponse(url="/login", status_code=302)
     return await call_next(request)
+
+# SessionMiddleware must be added AFTER require_auth so it wraps it (runs first)
+app.add_middleware(SessionMiddleware, secret_key=os.getenv('SECRET_KEY', 'dev-secret-please-change'))
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, error: str = ""):

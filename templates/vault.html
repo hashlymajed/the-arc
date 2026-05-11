@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Brand Vault{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Brand Vault</div>
+    <div class="page-sub">{{ doc_count }} documents · Obsidian sync · Semantic search</div>
+  </div>
+  <div class="page-actions">
+    <button class="btn" onclick="rebuildIndex()">↻ Rebuild Index</button>
+  </div>
+</div>
+
+<div class="page-content">
+
+  <!-- Search -->
+  <div class="panel" style="margin-bottom:1.5rem">
+    <div class="panel-body" style="display:flex;gap:10px;align-items:flex-end">
+      <div class="field" style="flex:1;margin:0">
+        <label class="field-label">Semantic Search</label>
+        <input type="text" id="vaultQuery" placeholder="e.g. brand voice guidelines, sustainability messaging, launch campaign strategy…" onkeydown="if(event.key==='Enter')searchVault()">
+      </div>
+      <button class="btn primary" onclick="searchVault()" style="height:37px">Search</button>
+    </div>
+  </div>
+
+  <!-- Search results -->
+  <div id="searchResults" style="display:none;margin-bottom:1.5rem">
+    <div class="section-head">
+      <div class="section-title">Results</div>
+      <span class="section-meta" id="resultsCount"></span>
+    </div>
+    <div id="resultsList" class="intel-feed"></div>
+  </div>
+
+  <!-- Vault browser -->
+  <div class="two-col">
+
+    <div>
+      <div class="section-head">
+        <div class="section-title">Documents</div>
+        <span class="section-meta">{{ doc_count }} indexed</span>
+      </div>
+      <div class="intel-feed" id="docList" style="max-height:600px;overflow-y:auto">
+        {% for doc in documents %}
+        <div class="intel-item" onclick="showDoc('{{ doc.filename }}')">
+          <div class="intel-item-icon">▣</div>
+          <div class="intel-item-body">
+            <div class="intel-item-title">{{ doc.title }}</div>
+            <div class="intel-item-meta">{{ doc.filename }} · {{ doc.size }}</div>
+          </div>
+        </div>
+        {% else %}
+        <div class="intel-item">
+          <div class="intel-item-body text-muted">
+            No documents indexed.
+            Check Obsidian vault path in <a href="/settings" style="color:var(--gold)">Settings</a>.
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div>
+      <div class="section-head">
+        <div class="section-title">Document Preview</div>
+      </div>
+      <div class="panel" id="docPreview" style="min-height:300px">
+        <div class="panel-body">
+          <div class="empty" style="min-height:200px">
+            <div class="empty-glyph">▣</div>
+            <div class="empty-text">Select a document to preview</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Vault stats -->
+  <div class="section-head" style="margin-top:1rem">
+    <div class="section-title">Vault Health</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat">
+      <div class="stat-val">{{ doc_count }}</div>
+      <div class="stat-lbl">Documents</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">{{ chunk_count }}</div>
+      <div class="stat-lbl">Indexed Chunks</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">{{ index_age }}</div>
+      <div class="stat-lbl">Index Age</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" style="font-size:1rem">{{ embedding_model }}</div>
+      <div class="stat-lbl">Embedding Model</div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function searchVault() {
+  const q = document.getElementById('vaultQuery').value.trim();
+  if (!q) return;
+  const r = await fetch('/api/vault/search?q=' + encodeURIComponent(q));
+  const data = await r.json();
+
+  const list = document.getElementById('resultsList');
+  const box  = document.getElementById('searchResults');
+  document.getElementById('resultsCount').textContent = data.results.length + ' results';
+
+  list.innerHTML = data.results.map(x => `
+    <div class="intel-item">
+      <div class="intel-item-icon">◆</div>
+      <div class="intel-item-body">
+        <div class="intel-item-title font-serif">${x.title}</div>
+        <div style="font-size:11px;color:var(--text);line-height:1.8;margin:6px 0">${x.excerpt}</div>
+        <div class="intel-item-meta">${x.source}</div>
+      </div>
+    </div>
+  `).join('') || '<div class="intel-item"><div class="intel-item-body text-muted">No results found</div></div>';
+
+  box.style.display = 'block';
+}
+
+async function showDoc(filename) {
+  const r = await fetch('/api/vault/doc?f=' + encodeURIComponent(filename));
+  const data = await r.json();
+  const preview = document.getElementById('docPreview');
+  preview.innerHTML = `
+    <div class="panel-head">
+      <div class="panel-title">${data.title}</div>
+      <div class="text-muted small">${data.filename}</div>
+    </div>
+    <div class="panel-body" style="max-height:500px;overflow-y:auto;white-space:pre-wrap;font-family:'Instrument Serif',serif;font-size:0.95rem;line-height:2;color:var(--text)">${data.content}</div>
+  `;
+}
+
+async function rebuildIndex() {
+  if (!confirm('Rebuild the vector index? This may take a minute.')) return;
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Rebuilding…';
+  const r = await fetch('/api/vault/rebuild', { method: 'POST' });
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = '↻ Rebuild Index';
+  alert(d.message || 'Done');
+  window.location.reload();
+}
+</script>
+{% endblock %}

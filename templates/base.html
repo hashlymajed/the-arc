@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}The Arc{% endblock %} · Aldar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/static/css/arc.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+
+  <style>
+  /* ── Splash Screen ── */
+  #arc-splash {
+    position: fixed; inset: 0; z-index: 9000;
+    background: #1B2632;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #arc-splash.exiting {
+    animation: splashExit 0.8s cubic-bezier(0.4,0,0.6,1) forwards;
+  }
+  @keyframes splashExit {
+    to { opacity: 0; transform: scale(1.03); }
+  }
+
+  .splash-inner {
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center; position: relative; user-select: none;
+  }
+
+  /* Building */
+  .splash-building {
+    position: relative; width: 280px; height: 280px;
+    display: flex; align-items: center; justify-content: center;
+    animation: buildingRise 1.6s cubic-bezier(0.16,1,0.3,1) 0.2s both;
+    margin-bottom: 2rem;
+  }
+  .building-svg {
+    width: 260px; height: 260px;
+    filter: drop-shadow(0 0 48px rgba(45,168,204,0.40))
+            drop-shadow(0 0 100px rgba(45,168,204,0.18));
+  }
+  .building-halo {
+    position: absolute; inset: -40px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(45,168,204,0.18) 0%, transparent 70%);
+    animation: haloPulse 4s ease-in-out infinite 2s;
+  }
+  @keyframes buildingRise {
+    from { opacity: 0; transform: scale(0.55) translateY(50px); filter: blur(24px); }
+    to   { opacity: 1; transform: scale(1) translateY(0);       filter: blur(0); }
+  }
+  @keyframes haloPulse {
+    0%,100% { opacity: 0.5; transform: scale(1); }
+    50%     { opacity: 1;   transform: scale(1.12); }
+  }
+
+  /* ALDAR */
+  .splash-brand {
+    animation: fadeUp 0.9s ease 2.0s both;
+    margin-bottom: 1.5rem;
+  }
+  .splash-aldar {
+    font-family: 'Poppins', sans-serif;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.45em;
+    color: #C9C1B1; text-transform: uppercase;
+  }
+
+  /* Connector line */
+  .splash-line {
+    width: 1px; height: 40px;
+    background: linear-gradient(to bottom, rgba(238,233,223,0.25), transparent);
+    margin: 0 auto 1.5rem;
+    animation: fadeUp 0.6s ease 2.5s both;
+  }
+
+  /* ARC name */
+  .splash-arc {
+    animation: fadeUp 1.0s cubic-bezier(0.16,1,0.3,1) 2.8s both;
+    margin-bottom: 0.5rem;
+    position: relative;
+  }
+  /* Expanding ring effect on reveal */
+  .splash-arc::before {
+    content: '';
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px; height: 60px; border-radius: 50%;
+    border: 1px solid rgba(255,177,98,0.5);
+    animation: ringExpand 1.2s ease 3.2s both;
+    pointer-events: none;
+  }
+  @keyframes ringExpand {
+    from { width: 60px; height: 60px; opacity: 0.8; }
+    to   { width: 280px; height: 280px; opacity: 0; }
+  }
+  .splash-welcome {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.2em;
+    color: #C9C1B1; text-transform: uppercase; margin-bottom: 10px;
+  }
+  .splash-arcname {
+    font-family: 'Instrument Serif', serif;
+    font-size: 56px; font-weight: 400; letter-spacing: -0.02em; line-height: 1;
+    background: linear-gradient(135deg, #EEE9DF 0%, #FFB162 55%, #A35139 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .splash-arcsub {
+    font-size: 11px; color: #697585; letter-spacing: 0.1em;
+    text-transform: uppercase; margin-top: 12px;
+    animation: fadeUp 0.7s ease 3.4s both;
+  }
+
+  /* Enter */
+  .splash-cta {
+    margin-top: 2.5rem;
+    animation: fadeUp 0.7s ease 3.9s both;
+  }
+  .splash-enter {
+    background: none; border: 1px solid rgba(255,177,98,0.45);
+    border-radius: 999px; padding: 11px 32px;
+    font-family: 'Poppins', sans-serif; font-size: 12px;
+    font-weight: 500; letter-spacing: 0.06em;
+    color: #FFB162; cursor: pointer; transition: all 0.22s;
+  }
+  .splash-enter:hover {
+    background: rgba(255,177,98,0.10); border-color: #FFB162;
+    transform: translateY(-2px); box-shadow: 0 10px 30px rgba(255,177,98,0.22);
+  }
+
+  /* Background ambient glow for splash */
+  .splash-bg-glow {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse at 50% 60%, rgba(45,168,204,0.10) 0%, transparent 55%),
+      radial-gradient(ellipse at 75% 90%, rgba(255,177,98,0.10) 0%, transparent 45%);
+    animation: fadeIn 1s ease 0.5s both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  </style>
+
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- ── Splash Screen ── -->
+<div id="arc-splash">
+  <div class="splash-bg-glow"></div>
+  <div class="splash-inner">
+
+    <!-- Aldar Round Building — CSS/SVG recreation -->
+    <div class="splash-building">
+      <div class="building-halo"></div>
+      <svg viewBox="0 0 320 320" class="building-svg" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <!-- Glass gradient — teal-blue sky reflected, warm earth at base -->
+          <radialGradient id="glassGrad" cx="40%" cy="30%" r="70%">
+            <stop offset="0%"   stop-color="#8ae8f8"/>
+            <stop offset="25%"  stop-color="#3abcd8"/>
+            <stop offset="55%"  stop-color="#1e88c0"/>
+            <stop offset="80%"  stop-color="#1560a0"/>
+            <stop offset="92%"  stop-color="#c8823d"/>
+            <stop offset="100%" stop-color="#8a5020"/>
+          </radialGradient>
+
+          <!-- Diamond lattice pattern — signature Aldar facade -->
+          <pattern id="diamondGrid" x="0" y="0" width="44" height="44" patternUnits="userSpaceOnUse">
+            <path d="M22,0 L44,22 L22,44 L0,22 Z"
+                  fill="none" stroke="rgba(255,255,255,0.30)" stroke-width="1.4"
+                  stroke-linejoin="round"/>
+          </pattern>
+
+          <!-- Clip to circle -->
+          <clipPath id="circleClip">
+            <circle cx="160" cy="160" r="148"/>
+          </clipPath>
+
+          <!-- Inner shine gradient -->
+          <radialGradient id="shineGrad" cx="35%" cy="25%" r="45%">
+            <stop offset="0%"   stop-color="rgba(255,255,255,0.18)"/>
+            <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+          </radialGradient>
+
+          <!-- Glow filter -->
+          <filter id="rimGlow" x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Glass face -->
+        <circle cx="160" cy="160" r="148" fill="url(#glassGrad)"/>
+
+        <!-- Diamond grid overlay -->
+        <rect x="10" y="10" width="300" height="300"
+              fill="url(#diamondGrid)" clip-path="url(#circleClip)"/>
+
+        <!-- Inner shine -->
+        <circle cx="160" cy="160" r="148" fill="url(#shineGrad)"/>
+
+        <!-- Outer rim — architectural ring -->
+        <circle cx="160" cy="160" r="148"
+                fill="none" stroke="rgba(255,255,255,0.80)" stroke-width="7"
+                filter="url(#rimGlow)"/>
+
+        <!-- Inner rim -->
+        <circle cx="160" cy="160" r="141"
+                fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+
+        <!-- Highlight arc — top-left glass reflection -->
+        <path d="M 75,70 A 105,105 0 0,1 245,70"
+              fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="3"
+              stroke-linecap="round"/>
+
+        <!-- Base platform -->
+        <rect x="118" y="307" width="84" height="7" rx="3"
+              fill="rgba(238,233,223,0.18)"/>
+        <rect x="138" y="313" width="44" height="4" rx="2"
+              fill="rgba(238,233,223,0.10)"/>
+      </svg>
+    </div>
+
+    <!-- ALDAR wordmark -->
+    <div class="splash-brand">
+      <div class="splash-aldar">ALDAR</div>
+    </div>
+
+    <!-- Connector -->
+    <div class="splash-line"></div>
+
+    <!-- ARC reveal -->
+    <div class="splash-arc">
+      <div class="splash-welcome">Welcome to</div>
+      <div class="splash-arcname">The Arc</div>
+    </div>
+    <div class="splash-arcsub">Comms Intelligence Platform</div>
+
+    <!-- Enter CTA -->
+    <div class="splash-cta">
+      <button class="splash-enter" onclick="window.__enterArc()">Enter Platform →</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── App Shell ── -->
+<div class="app-shell">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="logo-block">
+      <div class="logo-mark">ARC</div>
+      <div>
+        <div class="logo-text">The Arc</div>
+        <div class="logo-sub">Aldar · Comms Intelligence</div>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="global-search">
+        <span class="search-icon">⌕</span>
+        <input type="text" placeholder="Search vault, drafts, news…" id="globalSearch" autocomplete="off">
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill">
+        <div class="status-dot live" id="systemDot"></div>
+        <span id="systemStatus">System Ready</span>
+      </div>
+      <a href="/draft/new" class="header-btn primary">+ New Draft</a>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <nav class="app-nav">
+    <div class="nav-section">
+      <div class="nav-section-label">Workspace</div>
+      <a href="/" class="nav-link {% if active == 'home' %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-house"></i></span> Dashboard
+      </a>
+      <a href="/draft" class="nav-link {% if active == 'draft' %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-pen-nib"></i></span> Drafting Studio
+        {% if draft_count %}<span class="nav-badge new">{{ draft_count }}</span>{% endif %}
+      </a>
+      <a href="/queue" class="nav-link {% if active == 'queue' %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-list-check"></i></span> Approval Queue
+        {% if pending_count %}<span class="nav-badge alert">{{ pending_count }}</span>{% endif %}
+      </a>
+    </div>
+
+    <div class="nav-divider"></div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Intelligence</div>
+      <a href="/intelligence" class="nav-link {% if active == 'intelligence' %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-magnifying-glass-chart"></i></span> Comms Analysis
+      </a>
+      <a href="/vault" class="nav-link {% if active == 'vault' %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-layer-group"></i></span> Brand Vault
+      </a>
+      <a href="/news" class="nav-link {% if active == 'news' %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-newspaper"></i></span> News Archive
+      </a>
+    </div>
+
+    <div class="nav-divider"></div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Publish</div>
+      <a href="/archive" class="nav-link {% if active == 'archive' %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-circle-check"></i></span> Published
+      </a>
+      <a href="/settings" class="nav-link {% if active == 'settings' %}active{% endif %}">
+        <span class="nav-icon"><i class="fa-solid fa-gear"></i></span> Settings
+      </a>
+    </div>
+
+    <div class="nav-footer">
+      <div class="nav-footer-row">
+        <span>Vault</span>
+        <span class="text-gold" id="nav-vault-count">—</span>
+      </div>
+      <div class="nav-footer-row">
+        <span>Articles</span>
+        <span class="text-gold" id="nav-article-count">—</span>
+      </div>
+      <div class="nav-footer-row" style="margin-top:8px">
+        <span class="text-muted" style="font-size:10px">Gemini 2.5 Flash</span>
+        <span class="text-gold" style="font-size:10px">●</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="app-main">
+    {% block content %}{% endblock %}
+  </main>
+
+</div>
+
+<script src="/static/js/arc.js"></script>
+
+<!-- Splash controller -->
+<script>
+(function () {
+  const splash = document.getElementById('arc-splash');
+
+  window.__enterArc = function () {
+    clearTimeout(window.__splashTimer);
+    splash.classList.add('exiting');
+    setTimeout(function () { splash.style.display = 'none'; }, 800);
+  };
+
+  if (sessionStorage.getItem('arc-splash-seen')) {
+    splash.style.display = 'none';
+  } else {
+    sessionStorage.setItem('arc-splash-seen', '1');
+    // Auto-advance after 7 s
+    window.__splashTimer = setTimeout(window.__enterArc, 7000);
+  }
+})();
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

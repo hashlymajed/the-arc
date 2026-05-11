@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Settings</div>
+    <div class="page-sub">API keys, vault path, brand config</div>
+  </div>
+  <div class="page-actions">
+    <button class="btn primary" onclick="saveSettings()">Save Settings</button>
+  </div>
+</div>
+
+<div class="page-content">
+  <div style="max-width:720px">
+
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">API Configuration</div></div>
+      <div class="panel-body">
+        <div class="field">
+          <label class="field-label">Gemini API Key</label>
+          <input type="password" id="geminiKey" value="{{ settings.gemini_api_key or '' }}" placeholder="AIza…">
+        </div>
+        <div class="field">
+          <label class="field-label">Anthropic API Key (optional — for Claude fallback)</label>
+          <input type="password" id="anthropicKey" value="{{ settings.anthropic_api_key or '' }}" placeholder="sk-ant-…">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">Knowledge Base</div></div>
+      <div class="panel-body">
+        <div class="field">
+          <label class="field-label">Obsidian Vault Path</label>
+          <input type="text" id="vaultPath" value="{{ settings.vault_path or '' }}" placeholder="/Users/you/Obsidian/AlDar/AlDar Vault">
+        </div>
+        <div class="field">
+          <label class="field-label">News DB Path</label>
+          <input type="text" id="newsDbPath" value="{{ settings.news_db_path or '' }}" placeholder="/Users/you/news_agent/news_articles.db">
+        </div>
+        <div class="field">
+          <label class="field-label">Vector Index Directory</label>
+          <input type="text" id="vectorDbPath" value="{{ settings.vector_db_path or '' }}" placeholder="./data/chroma_db">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">Brand Config</div></div>
+      <div class="panel-body">
+        <div class="field">
+          <label class="field-label">Organisation Name</label>
+          <input type="text" id="orgName" value="{{ settings.org_name or 'Aldar Properties' }}">
+        </div>
+        <div class="field">
+          <label class="field-label">Brand Voice Guidelines (injected into every prompt)</label>
+          <textarea id="brandVoice" rows="6">{{ settings.brand_voice or 'Tone: confident, premium, human, relatable. Never use aggressive sales language. Emphasise community, lifestyle, and long-term value. The brand promise is "from property to people".' }}</textarea>
+        </div>
+        <div class="field">
+          <label class="field-label">Standard Boilerplate (appended to press releases)</label>
+          <textarea id="boilerplate" rows="5">{{ settings.boilerplate or 'About Aldar\nAldar Properties PJSC is the leading real estate developer, manager and investor in Abu Dhabi, with a diverse portfolio of assets and a proven track record of developing and managing premier residential, retail, hospitality and commercial properties…' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">Model Settings</div></div>
+      <div class="panel-body">
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label">LLM Model</label>
+            <select id="llmModel">
+              {% for m in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "claude-sonnet-4-6"] %}
+              <option value="{{ m }}" {% if settings.llm_model == m %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Max Output Tokens</label>
+            <input type="number" id="maxTokens" value="{{ settings.max_tokens or 8192 }}" min="1000" max="32000">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Temperature</label>
+          <input type="range" id="temperature" min="0" max="1" step="0.05" value="{{ settings.temperature or 0.4 }}" oninput="document.getElementById('tempVal').textContent=this.value">
+          <span class="text-muted small" id="tempVal">{{ settings.temperature or 0.4 }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:1.5rem">
+      <button class="btn primary" onclick="saveSettings()">Save Settings</button>
+      <button class="btn" onclick="testConnection()">Test Connection</button>
+    </div>
+    <div id="settingsMsg" style="margin-top:1rem;font-size:12px"></div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function saveSettings() {
+  const payload = {
+    gemini_api_key:    document.getElementById('geminiKey').value,
+    anthropic_api_key: document.getElementById('anthropicKey').value,
+    vault_path:        document.getElementById('vaultPath').value,
+    news_db_path:      document.getElementById('newsDbPath').value,
+    vector_db_path:    document.getElementById('vectorDbPath').value,
+    org_name:          document.getElementById('orgName').value,
+    brand_voice:       document.getElementById('brandVoice').value,
+    boilerplate:       document.getElementById('boilerplate').value,
+    llm_model:         document.getElementById('llmModel').value,
+    max_tokens:        parseInt(document.getElementById('maxTokens').value),
+    temperature:       parseFloat(document.getElementById('temperature').value)
+  };
+  const r = await fetch('/api/settings', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const d = await r.json();
+  const msg = document.getElementById('settingsMsg');
+  msg.style.color = d.ok ? 'var(--green)' : 'var(--red)';
+  msg.textContent = d.ok ? '✓ Settings saved' : '✗ ' + d.error;
+}
+
+async function testConnection() {
+  const key = document.getElementById('geminiKey').value;
+  const msg = document.getElementById('settingsMsg');
+  msg.style.color = 'var(--muted)'; msg.textContent = 'Testing…';
+  const r = await fetch('/api/settings/test', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gemini_api_key: key })
+  });
+  const d = await r.json();
+  msg.style.color = d.ok ? 'var(--green)' : 'var(--red)';
+  msg.textContent = d.ok ? '✓ Connected — ' + d.model : '✗ ' + d.error;
+}
+</script>
+{% endblock %}

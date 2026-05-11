@@ -1,0 +1,15 @@
+venv/
+build/
+dist/
+data/
+__pycache__/
+*.pyc
+*.pyo
+*.spec
+.pytest_cache/
+.claude-flow/
+.swarm/
+agentdb.rvf
+agentdb.rvf.lock
+ruvector.db
+.DS_Store

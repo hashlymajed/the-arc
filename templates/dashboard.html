@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block head %}
+<style>
+/* ── Dashboard layout ── */
+.dash-header {
+  padding: 1.75rem 2rem 1.5rem;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.dash-eyebrow {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 7px;
+}
+.dash-title {
+  font-size: 26px; font-weight: 700; letter-spacing: -0.03em; line-height: 1;
+  color: var(--text);
+}
+.dash-greeting { color: var(--gold); }
+.dash-sub { font-size: 12px; color: var(--muted); margin-top: 7px; }
+
+/* ── KPI strip ── */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+.kpi {
+  padding: 1.4rem 1.6rem;
+  border-right: 1px solid var(--border);
+  position: relative; overflow: hidden;
+  transition: background 0.2s;
+}
+.kpi:last-child { border-right: none; }
+.kpi:hover { background: var(--surface); }
+.kpi::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  border-radius: 0 0 2px 2px;
+}
+.kpi-blue::before   { background: linear-gradient(90deg, var(--blue), var(--teal)); }
+.kpi-orange::before { background: var(--orange); }
+.kpi-green::before  { background: var(--green); }
+.kpi-purple::before { background: var(--purple); }
+.kpi-teal::before   { background: linear-gradient(90deg, var(--teal), var(--blue)); }
+
+.kpi-val {
+  font-size: 34px; font-weight: 700; letter-spacing: -0.045em; line-height: 1;
+  margin-bottom: 5px;
+}
+.kpi-blue .kpi-val   { color: var(--blue); }
+.kpi-orange .kpi-val { color: var(--orange); }
+.kpi-green .kpi-val  { color: var(--green); }
+.kpi-purple .kpi-val { color: var(--purple); }
+.kpi-teal .kpi-val   { color: var(--teal); }
+.kpi-lbl {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ── Channel launcher ── */
+.ch-launcher {
+  padding: 1.4rem 2rem;
+  border-bottom: 1px solid var(--border);
+}
+.ch-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--muted); margin-bottom: 1rem;
+}
+.ch-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+.ch-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 9px; padding: 1.1rem 0.5rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer; transition: all 0.18s; text-align: center;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+}
+.ch-btn:hover {
+  background: var(--surface2); border-color: var(--border2);
+  transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+}
+.ch-icon { font-size: 20px; line-height: 1; color: var(--gold); }
+.ch-name { font-size: 11px; font-weight: 600; color: var(--text); letter-spacing: 0.01em; }
+.ch-hint { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+/* ── Bento columns ── */
+.dash-bento {
+  display: grid; grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+}
+.dash-col {
+  padding: 1.5rem 2rem;
+  border-right: 1px solid var(--border);
+}
+.dash-col:last-child { border-right: none; }
+.dash-col-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1.1rem;
+}
+.dash-col-title {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+/* ── Draft rows ── */
+.draft-row {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  text-decoration: none; transition: opacity 0.15s;
+}
+.draft-row:last-child { border-bottom: none; }
+.draft-row:hover { opacity: 0.75; }
+.d-dot {
+  width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0;
+}
+.d-dot.draft     { background: var(--muted); }
+.d-dot.review    { background: var(--orange); box-shadow: 0 0 8px rgba(255,154,92,0.55); }
+.d-dot.approved  { background: var(--green);  box-shadow: 0 0 8px rgba(0,212,168,0.55); }
+.d-dot.published { background: var(--blue);   box-shadow: 0 0 8px rgba(34,113,255,0.55); }
+.d-title { font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.35; margin-bottom: 3px; }
+.d-meta  { font-size: 11px; color: var(--muted); }
+.d-ch    { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted2); }
+
+/* ── Intelligence card grid ── */
+.intel-section {
+  padding: 1.5rem 2rem 2rem;
+}
+.intel-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.i-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 1rem 1.1rem;
+  text-decoration: none; display: block;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  transition: all 0.18s;
+}
+.i-card:hover {
+  background: var(--surface2); border-color: var(--border2);
+  transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+.i-card-date { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 7px; }
+.i-card-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 14px; color: var(--text); line-height: 1.45;
+}
+.i-card-dot {
+  display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--teal); margin-right: 6px; margin-bottom: 1px; vertical-align: middle;
+}
+
+/* ── Empty state (inline) ── */
+.dash-empty {
+  padding: 2.5rem 0; text-align: center; color: var(--muted); font-size: 13px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .kpi-strip { grid-template-columns: repeat(3, 1fr); }
+  .ch-grid   { grid-template-columns: repeat(3, 1fr); }
+  .dash-bento { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="dash-header">
+  <div>
+    <div class="dash-eyebrow">Aldar Strategic Communications</div>
+    <div class="dash-title"><span class="dash-greeting" id="greetingWord">Good morning</span>, Command Centre</div>
+    <div class="dash-sub" id="dashDate">{{ today }}</div>
+  </div>
+  <div style="display:flex; gap:8px; padding-top:6px;">
+    <button class="btn" onclick="refreshStats()">↻ Refresh</button>
+    <a href="/draft/new" class="btn primary">+ New Draft</a>
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-strip">
+  <div class="kpi kpi-blue">
+    <div class="kpi-val" id="stat-drafts">{{ stats.drafts }}</div>
+    <div class="kpi-lbl">Active Drafts</div>
+  </div>
+  <div class="kpi kpi-orange">
+    <div class="kpi-val" id="stat-pending">{{ stats.pending }}</div>
+    <div class="kpi-lbl">In Review</div>
+  </div>
+  <div class="kpi kpi-green">
+    <div class="kpi-val" id="stat-published">{{ stats.published }}</div>
+    <div class="kpi-lbl">Published · 30d</div>
+  </div>
+  <div class="kpi kpi-purple">
+    <div class="kpi-val" id="stat-vault">{{ stats.vault_docs }}</div>
+    <div class="kpi-lbl">Vault Docs</div>
+  </div>
+  <div class="kpi kpi-teal">
+    <div class="kpi-val" id="stat-news">{{ stats.news_articles }}</div>
+    <div class="kpi-lbl">News Articles</div>
+  </div>
+</div>
+
+<!-- Channel launcher -->
+<div class="ch-launcher">
+  <div class="ch-label">Quick Start</div>
+  {% set channels = [
+    ("fa-solid fa-newspaper",             "Press Release",    "press",    "Formal"),
+    ("fa-brands fa-linkedin-in",          "LinkedIn",         "linkedin", "Social"),
+    ("fa-solid fa-file-lines",            "Internal Memo",    "internal", "Staff"),
+    ("fa-solid fa-chart-pie",             "IR Update",        "ir",       "Investor"),
+    ("fa-solid fa-language",              "Arabic Version",   "arabic",   "Localise"),
+    ("fa-solid fa-triangle-exclamation",  "Crisis Statement", "crisis",   "Rapid")
+  ] %}
+  <div class="ch-grid">
+    {% for icon_class, name, slug, hint in channels %}
+    <div class="ch-btn" onclick="quickDraft('{{ slug }}')" tabindex="0" role="button">
+      <div class="ch-icon"><i class="{{ icon_class }}"></i></div>
+      <div>
+        <div class="ch-name">{{ name }}</div>
+        <div class="ch-hint">{{ hint }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Bento: Drafts + Queue -->
+<div class="dash-bento">
+
+  <div class="dash-col">
+    <div class="dash-col-head">
+      <div class="dash-col-title">Recent Drafts</div>
+      <a href="/draft" class="btn small" style="padding:4px 10px;font-size:10px">View All →</a>
+    </div>
+    {% for d in recent_drafts %}
+    <a href="/draft/{{ d.id }}" class="draft-row">
+      <div class="d-dot {{ d.status }}"></div>
+      <div style="flex:1">
+        <div class="d-title">{{ d.title }}</div>
+        <div class="d-meta"><span class="d-ch">{{ d.channel }}</span> · {{ d.updated_at }}</div>
+      </div>
+    </a>
+    {% else %}
+    <div class="dash-empty">No drafts yet — <a href="/draft/new" style="color:var(--gold)">create one</a></div>
+    {% endfor %}
+  </div>
+
+  <div class="dash-col">
+    <div class="dash-col-head">
+      <div class="dash-col-title">Approval Queue</div>
+      <a href="/queue" class="btn small" style="padding:4px 10px;font-size:10px">View All →</a>
+    </div>
+    {% for item in queue_items %}
+    <a href="/queue/{{ item.id }}" class="draft-row">
+      <div class="d-dot review"></div>
+      <div style="flex:1">
+        <div class="d-title">{{ item.title }}</div>
+        <div class="d-meta"><span class="d-ch">{{ item.channel }}</span> · {{ item.reviewer }}</div>
+      </div>
+    </a>
+    {% else %}
+    <div class="dash-empty">Queue is clear</div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<!-- Intelligence -->
+<div class="intel-section">
+  <div class="dash-col-head" style="margin-bottom:1.2rem;">
+    <div class="dash-col-title">Latest Intelligence</div>
+    <a href="/news" class="btn small" style="padding:4px 10px;font-size:10px">Full Archive →</a>
+  </div>
+  {% if recent_news %}
+  <div class="intel-card-grid">
+    {% for a in recent_news %}
+    <a href="/news/{{ a.id }}" class="i-card">
+      <div class="i-card-date"><span class="i-card-dot"></span>{{ a.date_string }}</div>
+      <div class="i-card-title">{{ a.title }}</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="dash-empty">No articles indexed — <a href="/settings" style="color:var(--gold)">run scraper</a></div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const h = new Date().getHours();
+  const word = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('greetingWord').textContent = word;
+})();
+
+function quickDraft(channel) {
+  window.location.href = '/draft/new?channel=' + channel;
+}
+
+async function refreshStats() {
+  const r = await fetch('/api/stats');
+  if (!r.ok) return;
+  const s = await r.json();
+  document.getElementById('stat-drafts').textContent    = s.drafts;
+  document.getElementById('stat-pending').textContent   = s.pending;
+  document.getElementById('stat-published').textContent = s.published;
+  document.getElementById('stat-vault').textContent     = s.vault_docs;
+  document.getElementById('stat-news').textContent      = s.news_articles;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Approval Queue{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Approval Queue</div>
+    <div class="page-sub">Review, annotate, and approve communications before publish</div>
+  </div>
+  <div class="page-actions">
+    <select class="btn" id="filterStatus" onchange="filterQueue()" style="cursor:pointer;padding:7px 14px">
+      <option value="">All Statuses</option>
+      <option value="review">In Review</option>
+      <option value="approved">Approved</option>
+      <option value="draft">Draft</option>
+      <option value="published">Published</option>
+    </select>
+  </div>
+</div>
+
+<div class="page-content">
+
+  <!-- Pipeline overview -->
+  <div class="pipeline" id="pipelineBoard">
+    {% set stages = [
+      ("draft",     "Draft",       items_by_status.draft),
+      ("review",    "In Review",   items_by_status.review),
+      ("approved",  "Approved",    items_by_status.approved),
+      ("published", "Published",   items_by_status.published)
+    ] %}
+    {% for slug, label, items in stages %}
+    <div class="pipeline-stage">
+      <div class="pipeline-stage-label">
+        {{ label }}
+        <span class="pipeline-count">{{ items|length }}</span>
+      </div>
+      {% for item in items %}
+      <div class="pipeline-item" onclick="openItem('{{ item.id }}')">
+        <div class="pipeline-item-title">{{ item.title }}</div>
+        <div class="pipeline-item-meta">{{ item.channel }} · {{ item.updated_at }}</div>
+      </div>
+      {% else %}
+      <div style="font-size:10px;color:var(--muted);padding:4px 0">—</div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Detail view -->
+  <div id="itemDetail" style="display:none">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title" id="detailTitle">—</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="badge" id="detailStatus">—</span>
+          <button class="btn" onclick="closeDetail()" style="padding:4px 10px;font-size:10px">✕ Close</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="two-col" style="margin-bottom:1.2rem">
+          <div>
+            <div class="field-label">Channel</div>
+            <div class="text-muted small" id="detailChannel">—</div>
+          </div>
+          <div>
+            <div class="field-label">Audience</div>
+            <div class="text-muted small" id="detailAudience">—</div>
+          </div>
+          <div>
+            <div class="field-label">Tone</div>
+            <div class="text-muted small" id="detailTone">—</div>
+          </div>
+          <div>
+            <div class="field-label">Last Updated</div>
+            <div class="text-muted small" id="detailUpdated">—</div>
+          </div>
+        </div>
+
+        <div class="field-label" style="margin-bottom:8px">Content</div>
+        <div id="detailContent" style="background:var(--bg);border:1px solid var(--border);padding:1.5rem;font-family:'Instrument Serif',serif;font-size:1rem;line-height:2;white-space:pre-wrap;max-height:400px;overflow-y:auto;margin-bottom:1.2rem"></div>
+
+        <div class="field-label" style="margin-bottom:8px">Review Notes</div>
+        <textarea id="reviewNotes" class="field" style="width:100%;margin:0" rows="4" placeholder="Add feedback, change requests, or approval notes…"></textarea>
+
+        <div style="display:flex;gap:8px;margin-top:1rem;flex-wrap:wrap">
+          <button class="btn" onclick="updateStatus('draft')" style="font-size:11px">← Return to Draft</button>
+          <button class="btn" onclick="updateStatus('review')" style="font-size:11px;color:var(--orange);border-color:rgba(201,122,76,0.4)">Mark In Review</button>
+          <button class="btn" onclick="updateStatus('approved')" style="font-size:11px;color:var(--green);border-color:rgba(76,170,110,0.4)">✓ Approve</button>
+          <button class="btn" onclick="updateStatus('published')" style="font-size:11px;color:var(--gold);border-color:rgba(201,168,76,0.4)">↑ Publish</button>
+          <a id="editLink" href="#" class="btn" style="font-size:11px;margin-left:auto">Edit in Studio →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full table -->
+  <div class="section-head">
+    <div class="section-title">All Items</div>
+    <span class="section-meta" id="tableCount">{{ all_items|length }} items</span>
+  </div>
+  <table class="arc-table" id="queueTable">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Channel</th>
+        <th>Status</th>
+        <th>Updated</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="queueTbody">
+      {% for item in all_items %}
+      <tr data-status="{{ item.status }}">
+        <td><a href="/draft/{{ item.id }}" style="color:var(--text)">{{ item.title }}</a></td>
+        <td class="text-muted">{{ item.channel }}</td>
+        <td><span class="badge {{ item.status }}">{{ item.status }}</span></td>
+        <td class="text-muted small">{{ item.updated_at }}</td>
+        <td>
+          <button class="btn" onclick="openItem('{{ item.id }}')" style="padding:4px 8px;font-size:10px">Review</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-muted" style="text-align:center;padding:2rem">No items yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentItemId = null;
+
+async function openItem(id) {
+  currentItemId = id;
+  const r = await fetch('/api/draft/' + id);
+  if (!r.ok) return;
+  const d = await r.json();
+
+  document.getElementById('detailTitle').textContent   = d.title;
+  document.getElementById('detailStatus').textContent  = d.status;
+  document.getElementById('detailStatus').className    = 'badge ' + d.status;
+  document.getElementById('detailChannel').textContent = d.channel;
+  document.getElementById('detailAudience').textContent = d.audience || '—';
+  document.getElementById('detailTone').textContent    = d.tone || '—';
+  document.getElementById('detailUpdated').textContent = d.updated_at;
+  document.getElementById('detailContent').textContent = d.content;
+  document.getElementById('reviewNotes').value         = d.review_notes || '';
+  document.getElementById('editLink').href             = '/draft/' + id;
+  document.getElementById('itemDetail').style.display  = 'block';
+  document.getElementById('itemDetail').scrollIntoView({ behavior: 'smooth' });
+}
+
+function closeDetail() {
+  document.getElementById('itemDetail').style.display = 'none';
+  currentItemId = null;
+}
+
+async function updateStatus(status) {
+  if (!currentItemId) return;
+  const notes = document.getElementById('reviewNotes').value;
+  const r = await fetch('/api/draft/status', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: currentItemId, status, review_notes: notes })
+  });
+  if (r.ok) { window.location.reload(); }
+}
+
+function filterQueue() {
+  const val = document.getElementById('filterStatus').value;
+  document.querySelectorAll('#queueTbody tr').forEach(row => {
+    row.style.display = (!val || row.dataset.status === val) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

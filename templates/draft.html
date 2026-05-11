@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}Drafting Studio{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Drafting Studio</div>
+    <div class="page-sub">AI-assisted, brand-voice enforced · Aldar Communications</div>
+  </div>
+  <div class="page-actions">
+    <a href="/draft" class="btn">All Drafts</a>
+    <button class="btn primary" id="saveDraftBtn" onclick="saveDraft()">Save Draft</button>
+  </div>
+</div>
+
+<div class="page-content">
+<div class="draft-shell">
+
+  <!-- Left sidebar: controls -->
+  <div class="draft-sidebar">
+
+    <div class="field">
+      <label class="field-label">Draft Title</label>
+      <input type="text" id="draftTitle" placeholder="e.g. Athlon Phase 3 Launch Announcement" value="{{ draft.title or '' }}">
+    </div>
+
+    <div class="field">
+      <label class="field-label">Channel</label>
+      <select id="draftChannel">
+        {% set channels = ["Press Release", "LinkedIn", "Internal Memo", "IR Update", "Arabic Version", "Crisis Statement", "Community Engagement", "Social (Twitter/X)", "Email Newsletter", "Website Copy"] %}
+        {% for c in channels %}
+        <option value="{{ c }}" {% if draft.channel == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Audience</label>
+      <select id="draftAudience">
+        {% for a in ["Media / Press", "Investors", "Employees", "Customers", "General Public", "Government / Regulatory", "Community"] %}
+        <option value="{{ a }}" {% if draft.audience == a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Tone</label>
+      <select id="draftTone">
+        {% for t in ["Premium & Confident", "Warm & Human", "Formal & Authoritative", "Celebratory", "Urgent / Crisis", "Analytical / IR"] %}
+        <option value="{{ t }}" {% if draft.tone == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Brief / Key Messages</label>
+      <textarea id="draftBrief" placeholder="Key facts, messages, quote sources, context…" rows="5">{{ draft.brief or '' }}</textarea>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Vault Context</label>
+      <textarea id="draftVaultContext" placeholder="Paste relevant brand guidelines, past comms, or leave blank to use RAG…" rows="4">{{ draft.vault_context or '' }}</textarea>
+    </div>
+
+    <button class="btn primary" id="generateBtn" onclick="generateDraft()" style="width:100%;justify-content:center;margin-top:auto">
+      <span id="genLabel">⟳ Generate Draft</span>
+      <span id="genSpinner" style="display:none">Generating…</span>
+    </button>
+
+    <div class="divider"></div>
+
+    <!-- Intelligence panel -->
+    <div>
+      <div class="field-label">Related Intelligence</div>
+      <div id="intelFeed" style="max-height:280px;overflow-y:auto">
+        <div class="text-muted small" style="padding:8px 0">Enter a brief to surface relevant vault context.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right: editor -->
+  <div class="draft-editor">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="badge {{ draft.status or 'draft' }}" id="draftStatusBadge">{{ draft.status or 'draft' }}</span>
+        <span class="text-muted small" id="wordCount">0 words</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn" onclick="copyDraft()" style="padding:5px 10px;font-size:10px">Copy</button>
+        <button class="btn" onclick="exportDraft()" style="padding:5px 10px;font-size:10px">Export</button>
+        <button class="btn" onclick="submitForReview()" style="padding:5px 10px;font-size:10px;border-color:rgba(201,168,76,0.4);color:var(--gold)">→ Submit for Review</button>
+      </div>
+    </div>
+
+    <div id="genProgress" style="display:none;margin-bottom:1rem">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px" id="genProgressLabel">Initialising…</div>
+      <div class="bar-track"><div class="bar-fill" id="genProgressBar" style="width:0%"></div></div>
+    </div>
+
+    <textarea class="draft-output" id="draftOutput"
+      placeholder="Your draft will appear here…&#10;&#10;You can also type or paste content directly and use Generate to refine it."
+    >{{ draft.content or '' }}</textarea>
+
+    <div class="draft-toolbar">
+      <button class="btn" onclick="refineDraft('shorten')" style="font-size:10px;padding:5px 10px">Shorten</button>
+      <button class="btn" onclick="refineDraft('expand')" style="font-size:10px;padding:5px 10px">Expand</button>
+      <button class="btn" onclick="refineDraft('arabic')" style="font-size:10px;padding:5px 10px">→ Arabic</button>
+      <button class="btn" onclick="refineDraft('check_voice')" style="font-size:10px;padding:5px 10px">Check Voice</button>
+      <button class="btn" onclick="refineDraft('add_quote')" style="font-size:10px;padding:5px 10px">Add Quote</button>
+      <button class="btn" onclick="refineDraft('add_boilerplate')" style="font-size:10px;padding:5px 10px">Add Boilerplate</button>
+    </div>
+
+    <div id="voiceCheckResult" style="display:none;margin-top:1rem;padding:1rem;border:1px solid var(--border);background:var(--surface);font-size:12px;line-height:1.8"></div>
+  </div>
+
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DRAFT_ID = "{{ draft.id or '' }}";
+
+const output  = document.getElementById('draftOutput');
+const genBtn  = document.getElementById('generateBtn');
+const genLbl  = document.getElementById('genLabel');
+const genSpn  = document.getElementById('genSpinner');
+const genProg = document.getElementById('genProgress');
+const genBar  = document.getElementById('genProgressBar');
+const genLblP = document.getElementById('genProgressLabel');
+
+output.addEventListener('input', updateWordCount);
+updateWordCount();
+
+function updateWordCount() {
+  const words = output.value.trim().split(/\s+/).filter(Boolean).length;
+  document.getElementById('wordCount').textContent = words + ' words';
+}
+
+function setGenerating(on) {
+  genBtn.disabled = on;
+  genLbl.style.display = on ? 'none' : '';
+  genSpn.style.display = on ? '' : 'none';
+  genProg.style.display = on ? 'block' : 'none';
+}
+
+function progress(pct, label) {
+  genBar.style.width = pct + '%';
+  genLblP.textContent = label;
+}
+
+async function generateDraft() {
+  const brief = document.getElementById('draftBrief').value.trim();
+  if (!brief) { alert('Add a brief before generating.'); return; }
+
+  setGenerating(true);
+  progress(10, 'Querying vault context…');
+
+  const payload = {
+    title:         document.getElementById('draftTitle').value,
+    channel:       document.getElementById('draftChannel').value,
+    audience:      document.getElementById('draftAudience').value,
+    tone:          document.getElementById('draftTone').value,
+    brief:         brief,
+    vault_context: document.getElementById('draftVaultContext').value,
+    existing:      output.value
+  };
+
+  try {
+    progress(30, 'Sending to AI…');
+    const r = await fetch('/api/draft/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    progress(70, 'Receiving output…');
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+
+    output.value = data.content;
+    updateWordCount();
+    progress(100, 'Done');
+
+    if (data.intel) renderIntel(data.intel);
+  } catch(e) {
+    alert('Generation failed: ' + e.message);
+  } finally {
+    setGenerating(false);
+  }
+}
+
+async function refineDraft(action) {
+  const content = output.value.trim();
+  if (!content) { alert('Nothing to refine.'); return; }
+
+  const r = await fetch('/api/draft/refine', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, action, channel: document.getElementById('draftChannel').value })
+  });
+  const data = await r.json();
+  if (data.error) { alert(data.error); return; }
+
+  if (action === 'check_voice') {
+    const box = document.getElementById('voiceCheckResult');
+    box.style.display = 'block';
+    box.innerHTML = data.content.replace(/\n/g, '<br>');
+  } else {
+    output.value = data.content;
+    updateWordCount();
+  }
+}
+
+async function saveDraft() {
+  const payload = {
+    id:      DRAFT_ID,
+    title:   document.getElementById('draftTitle').value,
+    channel: document.getElementById('draftChannel').value,
+    audience: document.getElementById('draftAudience').value,
+    tone:    document.getElementById('draftTone').value,
+    brief:   document.getElementById('draftBrief').value,
+    content: output.value,
+    status:  'draft'
+  };
+  const r = await fetch('/api/draft/save', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await r.json();
+  if (data.id && !DRAFT_ID) {
+    window.history.replaceState({}, '', '/draft/' + data.id);
+  }
+  document.querySelector('.page-sub').textContent = 'Saved · ' + new Date().toLocaleTimeString();
+}
+
+async function submitForReview() {
+  await saveDraft();
+  const r = await fetch('/api/draft/submit', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: DRAFT_ID || document.querySelector('[data-id]')?.dataset.id })
+  });
+  const data = await r.json();
+  if (data.ok) {
+    document.getElementById('draftStatusBadge').textContent = 'review';
+    document.getElementById('draftStatusBadge').className = 'badge review';
+  }
+}
+
+function copyDraft() {
+  navigator.clipboard.writeText(output.value);
+  const btn = event.target;
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+
+function exportDraft() {
+  const blob = new Blob([output.value], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (document.getElementById('draftTitle').value || 'draft') + '.txt';
+  a.click();
+}
+
+function renderIntel(items) {
+  const feed = document.getElementById('intelFeed');
+  feed.innerHTML = items.map(i => `
+    <div class="intel-item" style="padding:8px 0;border-bottom:1px solid var(--border)">
+      <div class="intel-item-icon" style="font-size:12px">◆</div>
+      <div class="intel-item-body">
+        <div class="intel-item-title" style="font-size:11px">${i.title}</div>
+        <div class="intel-item-meta">${i.source || ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Auto-save every 60s
+setInterval(() => { if (output.value) saveDraft(); }, 60000);
+</script>
+{% endblock %}

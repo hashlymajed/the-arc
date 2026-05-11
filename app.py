@@ -4,15 +4,47 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
 BASE_DIR   = Path(__file__).parent
 TEMPLATES  = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 app = FastAPI(title="The Arc", docs_url=None, redoc_url=None)
+app.add_middleware(SessionMiddleware, secret_key=os.getenv('SECRET_KEY', 'dev-secret-please-change'))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+_PUBLIC = {"/login", "/logout"}
+
+@app.middleware("http")
+async def require_auth(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/static") or path in _PUBLIC:
+        return await call_next(request)
+    if not request.session.get("authenticated"):
+        return RedirectResponse(url="/login", status_code=302)
+    return await call_next(request)
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = ""):
+    return TEMPLATES.TemplateResponse(request, "login.html", {"error": error})
+
+@app.post("/login")
+async def login_submit(request: Request):
+    form = await request.form()
+    password = form.get("password", "")
+    app_password = os.getenv("APP_PASSWORD", "")
+    if app_password and password == app_password:
+        request.session["authenticated"] = True
+        return RedirectResponse(url="/", status_code=302)
+    return TEMPLATES.TemplateResponse(request, "login.html", {"error": "Incorrect password."}, status_code=401)
+
+@app.get("/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=302)
 
 # Lazy imports — only load heavy libs when first needed
 def get_db():

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Arc · Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #1B2632;
+      color: #EEE9DF;
+      font-family: 'Poppins', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .bg-glow {
+      position: fixed; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 50% 60%, rgba(45,168,204,0.08) 0%, transparent 55%),
+        radial-gradient(ellipse at 75% 90%, rgba(255,177,98,0.08) 0%, transparent 45%);
+    }
+
+    .login-wrap {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 380px;
+      padding: 1.5rem;
+      animation: fadeUp 0.7s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .brand-aldar {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.45em;
+      color: #C9C1B1; text-transform: uppercase; margin-bottom: 0.75rem;
+    }
+    .brand-line {
+      width: 1px; height: 32px;
+      background: linear-gradient(to bottom, rgba(238,233,223,0.25), transparent);
+      margin: 0 auto 0.75rem;
+    }
+    .brand-name {
+      font-family: 'Instrument Serif', serif;
+      font-size: 42px; font-weight: 400; line-height: 1;
+      background: linear-gradient(135deg, #EEE9DF 0%, #FFB162 55%, #A35139 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .brand-sub {
+      font-size: 10px; color: #697585; letter-spacing: 0.1em;
+      text-transform: uppercase; margin-top: 8px;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(238,233,223,0.08);
+      border-radius: 12px;
+      padding: 2rem;
+    }
+
+    .card-title {
+      font-size: 13px; font-weight: 500; color: #C9C1B1;
+      letter-spacing: 0.04em; margin-bottom: 1.5rem; text-align: center;
+    }
+
+    .field { margin-bottom: 1.25rem; }
+    .field label {
+      display: block;
+      font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #697585; margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(238,233,223,0.12);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 13px; color: #EEE9DF;
+      outline: none; transition: border-color 0.2s;
+    }
+    .field input:focus {
+      border-color: rgba(255,177,98,0.45);
+    }
+    .field input::placeholder { color: #4a5568; }
+
+    .error {
+      background: rgba(163,81,57,0.15);
+      border: 1px solid rgba(163,81,57,0.35);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 12px; color: #e8907a;
+      margin-bottom: 1.25rem;
+      text-align: center;
+    }
+
+    .btn-submit {
+      width: 100%;
+      background: none;
+      border: 1px solid rgba(255,177,98,0.45);
+      border-radius: 999px;
+      padding: 11px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 12px; font-weight: 500; letter-spacing: 0.06em;
+      color: #FFB162; cursor: pointer;
+      transition: all 0.22s;
+    }
+    .btn-submit:hover {
+      background: rgba(255,177,98,0.10);
+      border-color: #FFB162;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(255,177,98,0.18);
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+
+  <div class="login-wrap">
+    <div class="brand">
+      <div class="brand-aldar">ALDAR</div>
+      <div class="brand-line"></div>
+      <div class="brand-name">The Arc</div>
+      <div class="brand-sub">Comms Intelligence Platform</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Sign in to continue</div>
+
+      {% if error %}
+      <div class="error">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/login">
+        <div class="field">
+          <label>Password</label>
+          <input type="password" name="password" autofocus placeholder="Enter access password">
+        </div>
+        <button type="submit" class="btn-submit">Enter Platform →</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

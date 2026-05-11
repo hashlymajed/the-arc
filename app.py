@@ -409,6 +409,32 @@ async def api_remove_draft_tag(draft_id: int, tag_id: int):
     return {"ok": True}
 
 
+@app.get("/api/vault/debug")
+async def api_vault_debug():
+    from api import vault
+    s = _settings()
+    resolved = vault._resolve_vault_path(s)
+    info = {
+        'cwd': os.getcwd(),
+        'vault_py_file': vault.__file__,
+        'env_VAULT_PATH': os.environ.get('VAULT_PATH'),
+        'settings_vault_path': s.get('vault_path'),
+        'DEFAULT_VAULT_PATH': vault.DEFAULT_VAULT_PATH,
+        '_BUNDLED_PATH': vault._BUNDLED_PATH,
+        'resolved_vault_path': resolved,
+        'resolved_exists': os.path.isdir(resolved),
+        'bundled_exists': os.path.isdir(vault._BUNDLED_PATH),
+        'app_listing': sorted(os.listdir('/app'))[:30] if os.path.isdir('/app') else None,
+    }
+    if os.path.isdir(resolved):
+        try:
+            info['resolved_listing'] = sorted(os.listdir(resolved))[:30]
+            md_count = sum(1 for r,_,fs in os.walk(resolved) for f in fs if f.endswith('.md'))
+            info['md_count'] = md_count
+        except Exception as e:
+            info['error'] = str(e)
+    return info
+
 @app.get("/api/vault/search")
 async def api_vault_search(q: str):
     from api.vault import search as vault_search

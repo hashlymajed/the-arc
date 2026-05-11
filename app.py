@@ -395,7 +395,7 @@ async def api_vault_rebuild():
     s = _settings()
     try:
         vault._build_store(
-            s.get('vault_path') or vault.DEFAULT_VAULT_PATH,
+            vault._resolve_vault_path(s),
             s.get('vector_db_path') or vault.DEFAULT_VECTOR_PATH,
             s.get('gemini_api_key') or os.getenv('GEMINI_API_KEY','')
         )

@@ -30,9 +30,15 @@ def _vault_mtime(vault_path: str) -> float:
                     pass
     return latest
 
+def _resolve_vault_path(settings: dict) -> str:
+    p = settings.get('vault_path') or DEFAULT_VAULT_PATH
+    if not os.path.isdir(p):
+        p = _BUNDLED_PATH
+    return p
+
 def get_store(settings: dict):
     """Return a loaded (or freshly built) Chroma vector store."""
-    vault_path  = settings.get('vault_path') or DEFAULT_VAULT_PATH
+    vault_path  = _resolve_vault_path(settings)
     vector_path = settings.get('vector_db_path') or DEFAULT_VECTOR_PATH
     api_key     = settings.get('gemini_api_key') or os.getenv('GEMINI_API_KEY', '')
     if api_key:
@@ -108,7 +114,7 @@ def search(query: str, settings: dict, k: int = 6) -> list[dict]:
         return [{'title': 'Error', 'excerpt': str(e), 'source': '', 'score': 0}]
 
 def get_doc_content(filename: str, settings: dict) -> dict:
-    vault_path = settings.get('vault_path') or DEFAULT_VAULT_PATH
+    vault_path = _resolve_vault_path(settings)
     for root, _, files in os.walk(vault_path):
         if filename in files:
             path = os.path.join(root, filename)
@@ -117,7 +123,7 @@ def get_doc_content(filename: str, settings: dict) -> dict:
     return {'filename': filename, 'title': filename, 'content': 'File not found.'}
 
 def list_docs(settings: dict) -> list[dict]:
-    vault_path = settings.get('vault_path') or DEFAULT_VAULT_PATH
+    vault_path = _resolve_vault_path(settings)
     docs = []
     for root, _, files in os.walk(vault_path):
         for f in files:

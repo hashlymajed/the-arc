@@ -2,7 +2,9 @@
 import os, json, time
 from pathlib import Path
 
-DEFAULT_VAULT_PATH  = "/Users/mayed/Obsidian/AlDar/AlDar Vault"
+_OBSIDIAN_PATH      = "/Users/mayed/Obsidian/AlDar/AlDar Vault"
+_BUNDLED_PATH       = os.path.join(os.path.dirname(__file__), '..', 'vault_docs')
+DEFAULT_VAULT_PATH  = _OBSIDIAN_PATH if os.path.isdir(_OBSIDIAN_PATH) else _BUNDLED_PATH
 DEFAULT_VECTOR_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'chroma_db')
 EMBEDDING_MODEL     = "models/gemini-embedding-001"
 META_PATH           = os.path.join(DEFAULT_VECTOR_PATH, 'db_meta.json')

@@ -37,7 +37,7 @@ async def dashboard(request: Request):
     s = get_settings()
 
     # news preview from existing SQLite
-    news_db = s.get('news_db_path') or os.path.expanduser("~/news_agent/news_articles.db")
+    news_db = s.get('news_db_path') or str(BASE_DIR / "data" / "news_articles.db")
     recent_news = []
     try:
         conn = sqlite3.connect(news_db)
@@ -131,7 +131,7 @@ async def vault_page(request: Request, q: str = ""):
 @app.get("/news", response_class=HTMLResponse)
 async def news_page(request: Request):
     s = _settings()
-    news_db = s.get('news_db_path') or os.path.expanduser("~/news_agent/news_articles.db")
+    news_db = s.get('news_db_path') or str(BASE_DIR / "data" / "news_articles.db")
     articles, year_list, total = [], [], 0
     try:
         conn = sqlite3.connect(news_db)
@@ -406,7 +406,7 @@ async def api_vault_rebuild():
 @app.get("/api/news/{article_id}")
 async def api_get_news(article_id: int):
     s = _settings()
-    news_db = s.get('news_db_path') or os.path.expanduser("~/news_agent/news_articles.db")
+    news_db = s.get('news_db_path') or str(BASE_DIR / "data" / "news_articles.db")
     try:
         conn = sqlite3.connect(news_db)
         conn.row_factory = sqlite3.Row
@@ -420,11 +420,15 @@ async def api_get_news(article_id: int):
 @app.post("/api/news/scrape")
 async def api_scrape_news():
     import subprocess, sys
-    scraper = os.path.expanduser("~/news_agent/scraper.py")
+    scraper = str(BASE_DIR / "scripts" / "scraper.py")
     if not os.path.exists(scraper):
-        return JSONResponse({'message': 'Scraper not found at ~/news_agent/scraper.py'}, status_code=404)
-    subprocess.Popen([sys.executable, scraper], cwd=os.path.expanduser("~/news_agent"))
-    return {'message': 'Scraper started in background — check ~/news_agent/scraper.log'}
+        return JSONResponse({'message': 'Scraper script not found.'}, status_code=404)
+    news_db = str(BASE_DIR / "data" / "news_articles.db")
+    try:
+        subprocess.Popen([sys.executable, scraper], cwd=str(BASE_DIR / "scripts"), env={**os.environ, 'NEWS_DB': news_db})
+        return {'message': 'Scraper started in background — new articles will appear on refresh'}
+    except Exception as e:
+        return JSONResponse({'message': f'Scraper could not start: {e}'}, status_code=500)
 
 @app.get("/api/settings")
 async def api_get_settings():
@@ -452,7 +456,7 @@ def _count_vault_docs(settings: dict) -> int:
     except Exception: return 0
 
 def _count_news(settings: dict) -> int:
-    news_db = settings.get('news_db_path') or os.path.expanduser("~/news_agent/news_articles.db")
+    news_db = settings.get('news_db_path') or str(BASE_DIR / "data" / "news_articles.db")
     try:
         conn = sqlite3.connect(news_db)
         count = conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]

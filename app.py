@@ -14,6 +14,15 @@ TEMPLATES  = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app = FastAPI(title="The Arc", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
+from api.media_routes import router as media_router
+app.include_router(media_router)
+
+from api.meetings_routes import router as meetings_router
+app.include_router(meetings_router)
+
+from api.meltwater_routes import router as meltwater_router
+app.include_router(meltwater_router)
+
 # Lazy imports — only load heavy libs when first needed
 def get_db():
     from api.db import init_db, get_conn
@@ -202,6 +211,62 @@ async def settings_page(request: Request):
     return TEMPLATES.TemplateResponse(request, "settings.html", {
         "active": "settings",
         "settings": s, "draft_count": None, "pending_count": None,
+    })
+
+@app.get("/media", response_class=HTMLResponse)
+async def media_page(request: Request):
+    from api.media_db import init_media_db
+    init_media_db()
+    return TEMPLATES.TemplateResponse(request, "media.html", {
+        "active": "media", "draft_count": None, "pending_count": None,
+    })
+
+@app.get("/media/journalist/{jid}", response_class=HTMLResponse)
+async def media_journalist_page(request: Request, jid: int):
+    from api.media_db import init_media_db
+    init_media_db()
+    return TEMPLATES.TemplateResponse(request, "media_journalist.html", {
+        "active": "media", "jid": jid, "draft_count": None, "pending_count": None,
+    })
+
+@app.get("/media/monitor", response_class=HTMLResponse)
+async def media_monitor_page(request: Request):
+    from api.media_db import init_media_db
+    init_media_db()
+    return TEMPLATES.TemplateResponse(request, "media_monitor.html", {
+        "active": "media", "draft_count": None, "pending_count": None,
+    })
+
+@app.get("/media/alerts", response_class=HTMLResponse)
+async def media_alerts_page(request: Request):
+    from api.media_db import init_media_db
+    init_media_db()
+    return TEMPLATES.TemplateResponse(request, "media_alerts.html", {
+        "active": "media", "draft_count": None, "pending_count": None,
+    })
+
+@app.get("/meetings", response_class=HTMLResponse)
+async def meetings_page(request: Request):
+    from api.meetings_db import init_meetings_db
+    init_meetings_db()
+    return TEMPLATES.TemplateResponse(request, "meetings.html", {
+        "active": "meetings", "draft_count": None, "pending_count": None,
+    })
+
+@app.get("/meetings/{mid}", response_class=HTMLResponse)
+async def meeting_detail_page(request: Request, mid: int):
+    from api.meetings_db import init_meetings_db
+    init_meetings_db()
+    return TEMPLATES.TemplateResponse(request, "meeting_detail.html", {
+        "active": "meetings", "mid": mid, "draft_count": None, "pending_count": None,
+    })
+
+@app.get("/meltwater", response_class=HTMLResponse)
+async def meltwater_page(request: Request):
+    from api.meltwater_db import init_meltwater_db
+    init_meltwater_db()
+    return TEMPLATES.TemplateResponse(request, "meltwater.html", {
+        "active": "meltwater", "draft_count": None, "pending_count": None,
     })
 
 @app.get("/archive", response_class=HTMLResponse)

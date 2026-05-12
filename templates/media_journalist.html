@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}Journalist Profile{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:14px">
+    <a href="/media" class="btn" style="padding:6px 12px">← Back</a>
+    <div>
+      <div class="page-title" id="jName">Loading…</div>
+      <div class="page-sub" id="jMeta">—</div>
+    </div>
+  </div>
+  <div class="page-actions">
+    <button class="btn" onclick="openInteractionModal()">+ Log Interaction</button>
+  </div>
+</div>
+
+<div class="page-content">
+  <div style="display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start">
+
+    <!-- Left: Profile card -->
+    <div>
+      <div class="panel" style="padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+          <div id="riskBadge"></div>
+          <div id="riskScore" style="font-size:28px;font-weight:700;color:var(--gold)">—</div>
+        </div>
+        <!-- Risk bar -->
+        <div style="background:rgba(255,255,255,0.08);border-radius:4px;height:6px;margin-bottom:16px">
+          <div id="riskBar" style="height:6px;border-radius:4px;width:0%;transition:width .6s ease;background:#22c55e"></div>
+        </div>
+        <div id="profileFields" class="text-muted" style="font-size:12px;line-height:2"></div>
+      </div>
+
+      <!-- Risk override -->
+      <div class="panel" style="padding:18px;margin-top:14px">
+        <div class="panel-title" style="font-size:11px;margin-bottom:12px">Risk Override</div>
+        <div class="field"><label class="field-label">Set Label</label>
+          <select id="overrideLabel">
+            <option value="">— no override —</option>
+            <option value="safe">Safe</option>
+            <option value="neutral">Neutral</option>
+            <option value="threat">Threat</option>
+          </select>
+        </div>
+        <div class="field"><label class="field-label">Reason</label>
+          <input type="text" id="overrideReason" placeholder="Reason for override…">
+        </div>
+        <button class="btn" onclick="saveOverride()" style="width:100%;color:var(--gold);border-color:rgba(201,168,76,0.4)">Save Override</button>
+        <div id="overrideMsg" style="display:none;margin-top:8px;font-size:11px;color:#22c55e"></div>
+      </div>
+    </div>
+
+    <!-- Right: Tabs -->
+    <div>
+      <div style="display:flex;gap:4px;margin-bottom:16px">
+        <button class="btn tab-btn active" onclick="showTab('articles',this)">Articles</button>
+        <button class="btn tab-btn" onclick="showTab('interactions',this)">Interactions</button>
+        <button class="btn tab-btn" onclick="showTab('publications',this)">Publications</button>
+      </div>
+
+      <!-- Articles -->
+      <div id="tab-articles">
+        <div class="intel-feed" id="articlesFeed">
+          <div class="intel-item"><div class="intel-item-body text-muted">Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- Interactions -->
+      <div id="tab-interactions" style="display:none">
+        <div class="intel-feed" id="interactionsFeed">
+          <div class="intel-item"><div class="intel-item-body text-muted">No interactions yet.</div></div>
+        </div>
+      </div>
+
+      <!-- Publications -->
+      <div id="tab-publications" style="display:none">
+        <div class="intel-feed" id="pubsFeed">
+          <div class="intel-item"><div class="intel-item-body text-muted">No publications linked.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Log Interaction Modal -->
+<div id="interactionModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center">
+  <div class="panel" style="width:440px;max-width:95vw;padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="panel-title">Log Interaction</div>
+      <button class="btn" onclick="closeInteractionModal()" style="padding:4px 10px;font-size:10px">✕</button>
+    </div>
+    <div class="field"><label class="field-label">Type</label>
+      <select id="iType">
+        <option value="email">Email</option>
+        <option value="call">Call</option>
+        <option value="meeting">Meeting</option>
+        <option value="article">Article mention</option>
+      </select>
+    </div>
+    <div class="field"><label class="field-label">Date</label>
+      <input type="date" id="iDate">
+    </div>
+    <div class="field"><label class="field-label">Notes</label>
+      <textarea id="iNotes" rows="3" style="resize:vertical" placeholder="What was discussed…"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="closeInteractionModal()">Cancel</button>
+      <button class="btn" onclick="saveInteraction()" style="color:var(--gold);border-color:rgba(201,168,76,0.4)">Save</button>
+    </div>
+    <div id="interactionMsg" style="display:none;margin-top:8px;font-size:11px;color:#22c55e"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const JID = {{ jid }};
+let journalistData = null;
+
+const SENTIMENT_COLORS = { positive:'#22c55e', neutral:'#94a3b8', negative:'#ef4444' };
+const RISK_COLORS = { safe:'#22c55e', neutral:'#fbbf24', threat:'#ef4444' };
+
+function sentimentBadge(s) {
+  const c = SENTIMENT_COLORS[s] || '#94a3b8';
+  return `<span style="font-size:10px;padding:1px 7px;border-radius:999px;background:${c}20;color:${c};border:1px solid ${c}40">${s}</span>`;
+}
+
+function riskBadge(label) {
+  const c = RISK_COLORS[label] || '#22c55e';
+  return `<span style="font-size:11px;padding:2px 10px;border-radius:999px;background:${c}20;color:${c};border:1px solid ${c}40;text-transform:capitalize">${label}</span>`;
+}
+
+function showTab(name, btn) {
+  ['articles','interactions','publications'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function loadJournalist() {
+  const r = await fetch('/api/media/journalists/' + JID);
+  if (!r.ok) { document.getElementById('jName').textContent = 'Not found'; return; }
+  const j = await r.json();
+  journalistData = j;
+
+  const effectiveLabel = j.risk_override_label || j.risk_label || 'safe';
+  document.getElementById('jName').textContent = j.name;
+  document.getElementById('jMeta').textContent =
+    (j.beat || '—') + ' · ' + (j.region || '—') + (j.email ? ' · ' + j.email : '');
+  document.getElementById('riskBadge').innerHTML = riskBadge(effectiveLabel);
+  document.getElementById('riskScore').textContent = Math.round(j.risk_score || 0);
+  const bar = document.getElementById('riskBar');
+  bar.style.width = (j.risk_score || 0) + '%';
+  bar.style.background = RISK_COLORS[effectiveLabel] || '#22c55e';
+
+  const fields = [
+    j.email       ? `<div>📧 ${j.email}</div>` : '',
+    j.phone       ? `<div>📞 ${j.phone}</div>` : '',
+    j.social_twitter  ? `<div>𝕏 ${j.social_twitter}</div>` : '',
+    j.social_linkedin ? `<div>in ${j.social_linkedin}</div>` : '',
+    j.relationship_owner ? `<div>Owner: ${j.relationship_owner}</div>` : '',
+    j.language    ? `<div>Lang: ${j.language}</div>` : '',
+    j.notes       ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08)">${j.notes}</div>` : '',
+  ].filter(Boolean).join('');
+  document.getElementById('profileFields').innerHTML = fields || '<div>No contact details</div>';
+
+  if (j.risk_override_label) {
+    document.getElementById('overrideLabel').value = j.risk_override_label;
+    document.getElementById('overrideReason').value = j.risk_override_reason || '';
+  }
+
+  renderArticles(j.articles || []);
+  renderInteractions(j.interactions || []);
+  renderPublications(j.publications || []);
+}
+
+function renderArticles(articles) {
+  const el = document.getElementById('articlesFeed');
+  if (!articles.length) {
+    el.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No articles tracked yet.</div></div>';
+    return;
+  }
+  el.innerHTML = articles.map(a =>
+    `<div class="intel-item">
+      <div class="intel-item-body">
+        <div class="intel-item-title" style="display:flex;align-items:center;gap:8px">
+          ${a.title} ${sentimentBadge(a.sentiment)}
+          ${a.risk_flag ? '<span style="color:#ef4444;font-size:10px">⚠ Flagged</span>' : ''}
+        </div>
+        <div class="intel-item-meta">${a.publication_name || '—'} · ${a.published_at || a.ingested_at?.slice(0,10) || '—'}</div>
+        ${a.sentiment_reasoning ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">${a.sentiment_reasoning}</div>` : ''}
+        ${(a.topics||[]).length ? `<div style="margin-top:4px">${a.topics.map(t=>`<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.06);margin-right:4px">${t}</span>`).join('')}</div>` : ''}
+      </div>
+    </div>`
+  ).join('');
+}
+
+function interactionIcon(type) {
+  if (type === 'email')   return '📧';
+  if (type === 'call')    return '📞';
+  if (type === 'meeting') return '🤝';
+  if (type === 'article') return '📰';
+  return '◆';
+}
+
+function renderInteractions(interactions) {
+  const el = document.getElementById('interactionsFeed');
+  if (!interactions.length) {
+    el.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No interactions logged yet.</div></div>';
+    return;
+  }
+  el.innerHTML = interactions.map(i =>
+    `<div class="intel-item">
+      <div class="intel-item-icon" style="font-size:14px">${interactionIcon(i.type)}</div>
+      <div class="intel-item-body">
+        <div class="intel-item-title">${i.type.charAt(0).toUpperCase()+i.type.slice(1)}</div>
+        <div class="intel-item-meta">${i.date || '—'} ${i.notes ? '· ' + i.notes : ''}</div>
+      </div>
+    </div>`
+  ).join('');
+}
+
+function renderPublications(pubs) {
+  const el = document.getElementById('pubsFeed');
+  if (!pubs.length) {
+    el.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No publications linked.</div></div>';
+    return;
+  }
+  el.innerHTML = pubs.map(p =>
+    `<div class="intel-item">
+      <div class="intel-item-body">
+        <div class="intel-item-title">${p.name} <span class="text-muted" style="font-size:11px">(${p.role||'staff'})</span></div>
+        <div class="intel-item-meta">${p.type||'—'} · Tier ${p.tier||'—'} · ${p.region||'—'}</div>
+      </div>
+    </div>`
+  ).join('');
+}
+
+async function saveOverride() {
+  const label  = document.getElementById('overrideLabel').value;
+  const reason = document.getElementById('overrideReason').value.trim();
+  const r = await fetch(`/api/media/journalists/${JID}/risk-override`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ label, reason }),
+  });
+  if (r.ok) {
+    const msg = document.getElementById('overrideMsg');
+    msg.textContent = 'Override saved.';
+    msg.style.display = 'block';
+    setTimeout(() => { msg.style.display = 'none'; loadJournalist(); }, 1000);
+  }
+}
+
+function openInteractionModal() {
+  document.getElementById('iDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('interactionModal').style.display = 'flex';
+}
+function closeInteractionModal() {
+  document.getElementById('interactionModal').style.display = 'none';
+}
+
+async function saveInteraction() {
+  const data = {
+    type:  document.getElementById('iType').value,
+    date:  document.getElementById('iDate').value,
+    notes: document.getElementById('iNotes').value.trim(),
+  };
+  const r = await fetch(`/api/media/journalists/${JID}/interactions`, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+  });
+  if (r.ok) {
+    const msg = document.getElementById('interactionMsg');
+    msg.textContent = 'Interaction logged.';
+    msg.style.display = 'block';
+    setTimeout(() => { closeInteractionModal(); loadJournalist(); }, 800);
+  }
+}
+
+loadJournalist();
+</script>
+{% endblock %}

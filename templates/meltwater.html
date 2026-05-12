@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+{% block title %}Meltwater Integration{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title" style="display:flex;align-items:center;gap:10px"><img src="https://avatars.githubusercontent.com/u/740088?s=28&v=4" width="28" height="28" style="border-radius:6px;vertical-align:middle" alt="Meltwater">Meltwater</div>
+    <div class="page-sub" id="mwSub">Article sync · Journalist import · Mention alerts</div>
+  </div>
+  <div class="page-actions">
+    <button class="btn" onclick="runMentionSync()" id="mentionBtn"><i class="fa-solid fa-bell"></i> Sync Mentions</button>
+    <button class="btn" style="color:var(--gold);border-color:rgba(201,168,76,0.4)" onclick="loadSearches()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+  </div>
+</div>
+
+<div class="page-content">
+
+  <!-- Connection Status -->
+  <div class="panel" style="padding:18px;margin-bottom:1.5rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div id="connDot" style="width:10px;height:10px;border-radius:50%;background:#94a3b8"></div>
+        <div>
+          <div style="font-size:13px;font-weight:600" id="connStatus">Checking connection…</div>
+          <div style="font-size:11px;color:var(--muted)" id="connSub">—</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;gap:10px">
+          <div style="text-align:center">
+            <div style="font-size:18px;font-weight:600;color:var(--gold)" id="statArt">—</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase">Articles</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:18px;font-weight:600;color:#2DD4BF" id="statJour">—</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase">Journalists</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:18px;font-weight:600;color:#94a3b8" id="statLast">—</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase">Last Sync</div>
+          </div>
+        </div>
+        <button class="btn" onclick="testConnection()" style="font-size:11px">
+          <i class="fa-solid fa-plug"></i> Test Connection
+        </button>
+        <a href="/settings" class="btn" style="font-size:11px">
+          <i class="fa-solid fa-key"></i> Configure Key
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:1.5rem">
+
+    <!-- Article Sync -->
+    <div class="panel" style="padding:20px">
+      <div class="panel-title" style="margin-bottom:14px"><i class="fa-solid fa-newspaper" style="color:var(--gold);margin-right:8px"></i>Article Sync</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+        Pull articles from your Meltwater saved searches into Media Monitor with AI sentiment analysis.
+      </div>
+      <div class="field">
+        <label class="field-label">Saved Search</label>
+        <select id="searchSelect">
+          <option value="">Loading searches…</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label">Days to look back</label>
+        <select id="daysBack">
+          <option value="1">Last 24 hours</option>
+          <option value="3">Last 3 days</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+      </div>
+      <div id="syncProgress" style="display:none;font-size:11px;color:var(--gold);margin-bottom:8px">
+        <i class="fa-solid fa-spinner fa-spin"></i> Syncing articles…
+      </div>
+      <div id="syncResult" style="display:none;font-size:11px;margin-bottom:8px"></div>
+      <button class="btn" onclick="syncArticles()" id="syncBtn" style="width:100%;color:var(--gold);border-color:rgba(201,168,76,0.4)">
+        <i class="fa-solid fa-cloud-arrow-down"></i> Sync Articles
+      </button>
+    </div>
+
+    <!-- Journalist Import -->
+    <div class="panel" style="padding:20px">
+      <div class="panel-title" style="margin-bottom:14px"><i class="fa-solid fa-address-book" style="color:#2DD4BF;margin-right:8px"></i>Journalist Import</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+        Import journalist contacts from Meltwater editorial database directly into your journalist CRM.
+        <span style="color:#fbbf24"> Requires Contacts add-on.</span>
+      </div>
+      <div class="field">
+        <label class="field-label">Search Query</label>
+        <input type="text" id="jourQuery" placeholder="e.g. real estate UAE, property journalist">
+      </div>
+      <div class="field">
+        <label class="field-label">Max contacts</label>
+        <select id="jourLimit">
+          <option value="25">25 contacts</option>
+          <option value="50" selected>50 contacts</option>
+          <option value="100">100 contacts</option>
+        </select>
+      </div>
+      <div id="jourProgress" style="display:none;font-size:11px;color:#2DD4BF;margin-bottom:8px">
+        <i class="fa-solid fa-spinner fa-spin"></i> Importing contacts…
+      </div>
+      <div id="jourResult" style="display:none;font-size:11px;margin-bottom:8px"></div>
+      <button class="btn" onclick="importJournalists()" id="jourBtn" style="width:100%;color:#2DD4BF;border-color:rgba(45,212,191,0.4)">
+        <i class="fa-solid fa-user-plus"></i> Import Journalists
+      </button>
+    </div>
+  </div>
+
+  <!-- Mention Alerts Config -->
+  <div class="panel" style="padding:20px;margin-bottom:1.5rem">
+    <div class="panel-title" style="margin-bottom:14px"><i class="fa-solid fa-bell" style="color:#F472B6;margin-right:8px"></i>Mention Alert Sync</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:flex-end">
+      <div class="field" style="margin:0">
+        <label class="field-label">Keyword / Brand name</label>
+        <input type="text" id="mentionKeyword" placeholder="Aldar Properties" value="Aldar">
+      </div>
+      <div class="field" style="margin:0">
+        <label class="field-label">Days back</label>
+        <select id="mentionDays">
+          <option value="1" selected>Last 24 hours</option>
+          <option value="3">Last 3 days</option>
+          <option value="7">Last 7 days</option>
+        </select>
+      </div>
+      <button class="btn" id="mentionBtn2" onclick="runMentionSync()" style="color:#F472B6;border-color:rgba(244,114,182,0.4)">
+        <i class="fa-solid fa-satellite-dish"></i> Pull Mentions
+      </button>
+    </div>
+    <div id="mentionResult" style="display:none;margin-top:10px;font-size:11px"></div>
+  </div>
+
+  <!-- Sync Log -->
+  <div class="panel" style="padding:18px">
+    <div class="panel-title" style="font-size:11px;margin-bottom:12px"><i class="fa-solid fa-clock-rotate-left" style="margin-right:6px"></i>Sync History</div>
+    <div id="syncLog">
+      <div class="text-muted" style="font-size:12px">Loading sync history…</div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TYPE_COLORS = { articles:'#C9A84C', journalists:'#2DD4BF', mentions:'#F472B6' };
+const TYPE_ICONS  = { articles:'fa-newspaper', journalists:'fa-user', mentions:'fa-bell' };
+
+async function loadStatus() {
+  const r = await fetch('/api/meltwater/status');
+  const s = await r.json();
+  const dot  = document.getElementById('connDot');
+  const stat = document.getElementById('connStatus');
+  const sub  = document.getElementById('connSub');
+  if (s.configured) {
+    dot.style.background  = '#22c55e';
+    stat.textContent      = 'Meltwater connected';
+    sub.textContent       = s.last_sync ? 'Last sync: ' + s.last_sync.slice(0,16).replace('T',' ') : 'No syncs yet';
+  } else {
+    dot.style.background  = '#ef4444';
+    stat.textContent      = 'API key not configured';
+    sub.textContent       = 'Add your Meltwater API key in Settings';
+  }
+  document.getElementById('statArt').textContent  = s.articles_synced  || 0;
+  document.getElementById('statJour').textContent = s.journalists_synced || 0;
+  document.getElementById('statLast').textContent = s.last_sync ? s.last_sync.slice(0,10) : '—';
+  document.getElementById('mwSub').textContent =
+    (s.articles_synced || 0) + ' articles · ' + (s.journalists_synced || 0) + ' journalists · ' + (s.configured ? 'Connected' : 'Not configured');
+}
+
+async function testConnection() {
+  const keyEl = document.querySelector('#connStatus');
+  keyEl.textContent = 'Testing…';
+  const r = await fetch('/api/settings');
+  const s = await r.json();
+  const res = await fetch('/api/meltwater/test', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({api_key: s.meltwater_api_key || ''})
+  });
+  const d = await res.json();
+  const dot = document.getElementById('connDot');
+  const sub = document.getElementById('connSub');
+  if (d.ok) {
+    dot.style.background  = '#22c55e';
+    keyEl.textContent     = 'Meltwater connected';
+    sub.textContent       = 'Connection verified';
+  } else {
+    dot.style.background  = '#ef4444';
+    keyEl.textContent     = 'Connection failed';
+    sub.textContent       = d.error || 'Unknown error';
+  }
+}
+
+async function loadSearches() {
+  const sel = document.getElementById('searchSelect');
+  sel.innerHTML = '<option value="">Loading…</option>';
+  try {
+    const r = await fetch('/api/meltwater/searches');
+    const list = await r.json();
+    if (list.error) {
+      sel.innerHTML = '<option value="">Error: ' + list.error + '</option>';
+      return;
+    }
+    if (!list.length) {
+      sel.innerHTML = '<option value="">No saved searches found in Meltwater</option>';
+      return;
+    }
+    sel.innerHTML = list.map(s => {
+      const id   = s.id || s.search_id || '';
+      const name = s.name || s.title || id;
+      const last = s.last_synced ? ' (synced ' + s.last_synced.slice(0,10) + ')' : '';
+      return `<option value="${id}">${name}${last}</option>`;
+    }).join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="">Configure API key first</option>';
+  }
+}
+
+async function syncArticles() {
+  const searchId = document.getElementById('searchSelect').value;
+  if (!searchId) { alert('Select a saved search first'); return; }
+  const btn = document.getElementById('syncBtn');
+  const prog = document.getElementById('syncProgress');
+  const res  = document.getElementById('syncResult');
+  btn.disabled = true;
+  prog.style.display = 'block';
+  res.style.display  = 'none';
+
+  try {
+    const r = await fetch('/api/meltwater/sync/articles', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        search_id: searchId,
+        days_back: parseInt(document.getElementById('daysBack').value),
+      })
+    });
+    const d = await r.json();
+    prog.style.display = 'none';
+    res.style.display  = 'block';
+    if (d.ok) {
+      res.style.color    = '#22c55e';
+      res.textContent    = d.synced + ' articles synced to Media Monitor.';
+    } else {
+      res.style.color    = '#ef4444';
+      res.textContent    = d.error || 'Sync failed.';
+    }
+    loadSyncLog();
+    loadStatus();
+  } catch (e) {
+    prog.style.display = 'none';
+    res.style.display  = 'block';
+    res.style.color    = '#ef4444';
+    res.textContent    = 'Network error';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function importJournalists() {
+  const query = document.getElementById('jourQuery').value.trim();
+  if (!query) { alert('Enter a search query (e.g. "real estate UAE")'); return; }
+  const btn  = document.getElementById('jourBtn');
+  const prog = document.getElementById('jourProgress');
+  const res  = document.getElementById('jourResult');
+  btn.disabled = true;
+  prog.style.display = 'block';
+  res.style.display  = 'none';
+
+  try {
+    const r = await fetch('/api/meltwater/sync/journalists', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        query: query,
+        limit: parseInt(document.getElementById('jourLimit').value),
+      })
+    });
+    const d = await r.json();
+    prog.style.display = 'none';
+    res.style.display  = 'block';
+    if (d.ok) {
+      res.style.color  = '#2DD4BF';
+      res.textContent  = d.imported + ' contacts imported' + (d.skipped ? ', ' + d.skipped + ' already existed.' : '.');
+    } else if (r.status === 403) {
+      res.style.color  = '#fbbf24';
+      res.textContent  = d.error;
+    } else {
+      res.style.color  = '#ef4444';
+      res.textContent  = d.error || 'Import failed.';
+    }
+    loadSyncLog();
+    loadStatus();
+  } catch (e) {
+    prog.style.display = 'none';
+    res.style.display  = 'block';
+    res.style.color    = '#ef4444';
+    res.textContent    = 'Network error';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function runMentionSync() {
+  const keyword = document.getElementById('mentionKeyword').value.trim() || 'Aldar';
+  const days    = parseInt(document.getElementById('mentionDays').value);
+  const res     = document.getElementById('mentionResult');
+  res.style.display  = 'block';
+  res.style.color    = '#F472B6';
+  res.textContent    = 'Pulling mentions…';
+  try {
+    const r = await fetch('/api/meltwater/sync/mentions', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ keyword, days_back: days })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      res.style.color = '#22c55e';
+      res.textContent = d.mentions + ' mentions found · ' + d.alerts_created + ' negative alerts created.';
+    } else {
+      res.style.color = '#ef4444';
+      res.textContent = d.error || 'Failed.';
+    }
+    loadSyncLog();
+  } catch (e) {
+    res.style.color = '#ef4444';
+    res.textContent = 'Network error';
+  }
+}
+
+async function loadSyncLog() {
+  const r = await fetch('/api/meltwater/sync/log');
+  const list = await r.json();
+  const el = document.getElementById('syncLog');
+  if (!list.length) {
+    el.innerHTML = '<div class="text-muted" style="font-size:12px">No syncs yet.</div>';
+    return;
+  }
+  el.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse">
+    <thead><tr style="color:var(--muted);text-transform:uppercase;font-size:10px;border-bottom:1px solid rgba(255,255,255,0.08)">
+      <th style="padding:6px 8px;text-align:left">Type</th>
+      <th style="padding:6px 8px;text-align:left">Source</th>
+      <th style="padding:6px 8px;text-align:right">Records</th>
+      <th style="padding:6px 8px;text-align:left">Status</th>
+      <th style="padding:6px 8px;text-align:left">When</th>
+    </tr></thead>
+    <tbody>` +
+    list.map(row => {
+      const tc = TYPE_COLORS[row.sync_type] || '#94a3b8';
+      const ti = TYPE_ICONS[row.sync_type]  || 'fa-circle';
+      const sc = row.status === 'ok' ? '#22c55e' : '#ef4444';
+      return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
+        <td style="padding:7px 8px;color:${tc}"><i class="fa-solid ${ti}" style="margin-right:5px"></i>${row.sync_type}</td>
+        <td style="padding:7px 8px;color:var(--muted)">${row.source || '—'}</td>
+        <td style="padding:7px 8px;text-align:right;font-weight:600">${row.records_synced}</td>
+        <td style="padding:7px 8px;color:${sc}">${row.status}</td>
+        <td style="padding:7px 8px;color:var(--muted)">${(row.synced_at || '').slice(0,16).replace('T',' ')}</td>
+      </tr>`;
+    }).join('') +
+    `</tbody></table>`;
+}
+
+loadStatus();
+loadSearches();
+loadSyncLog();
+</script>
+{% endblock %}

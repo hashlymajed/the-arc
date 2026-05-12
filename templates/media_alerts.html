@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% block title %}Media Alerts{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Alerts <span id="unreadBadge" style="display:none;font-size:14px;padding:2px 10px;border-radius:999px;background:rgba(239,68,68,0.15);color:#ef4444;margin-left:8px"></span></div>
+    <div class="page-sub">Risk signals &amp; media monitoring alerts</div>
+  </div>
+  <div class="page-actions">
+    <a href="/media" class="btn">← Journalists</a>
+    <a href="/media/monitor" class="btn">Monitor</a>
+  </div>
+</div>
+
+<div class="page-content">
+  <div style="display:flex;gap:4px;margin-bottom:1.5rem">
+    <button class="btn tab-btn active" onclick="setFilter('',this)">All</button>
+    <button class="btn tab-btn" onclick="setFilter('unread',this)">Unread</button>
+    <button class="btn tab-btn" style="color:#ef4444;border-color:rgba(239,68,68,0.4)" onclick="setFilter('critical',this)">Critical</button>
+  </div>
+  <div class="intel-feed" id="alertFeed">
+    <div class="intel-item"><div class="intel-item-body text-muted">Loading…</div></div>
+  </div>
+</div>
+
+<!-- Crisis Intelligence Modal -->
+<div id="crisisModal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(5,8,15,0.92);overflow-y:auto">
+  <div style="max-width:900px;margin:40px auto;padding:0 20px 60px">
+
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-top:8px">
+      <div>
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Crisis Intelligence System</div>
+        <div style="font-size:22px;font-weight:600;color:#eee9df" id="ciAlertTitle">—</div>
+      </div>
+      <button class="btn" onclick="closeCrisisModal()" style="margin-top:4px">✕ Close</button>
+    </div>
+
+    <!-- Loading state -->
+    <div id="ciLoading" style="text-align:center;padding:60px 0">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Convening crisis council…</div>
+      <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap" id="ciRoles"></div>
+      <div style="margin-top:24px;font-size:11px;color:rgba(255,255,255,0.25)">Simulating multi-perspective debate · Synthesising strategy</div>
+    </div>
+
+    <!-- Results -->
+    <div id="ciResults" style="display:none">
+
+      <!-- Risk level banner -->
+      <div id="ciRiskBanner" style="border-radius:8px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;opacity:.7;margin-bottom:4px">Overall Risk Level</div>
+          <div id="ciRiskLevel" style="font-size:28px;font-weight:700;text-transform:uppercase;letter-spacing:.04em"></div>
+        </div>
+        <div style="max-width:500px;text-align:right">
+          <div style="font-size:10px;opacity:.7;margin-bottom:4px">Risk Summary</div>
+          <div id="ciRiskSummary" style="font-size:13px;line-height:1.6;opacity:.9"></div>
+        </div>
+      </div>
+
+      <!-- Internal Debate -->
+      <div style="margin-bottom:28px">
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08)">
+          Internal Council Debate
+        </div>
+        <div id="ciDebate" style="display:grid;gap:12px"></div>
+      </div>
+
+      <!-- Final Strategy -->
+      <div>
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08)">
+          Unified Strategic Recommendation
+        </div>
+        <div id="ciStrategy"></div>
+      </div>
+
+    </div>
+
+    <!-- Error state -->
+    <div id="ciError" style="display:none;padding:40px;text-align:center;color:#ef4444;font-size:13px"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SEVERITY_COLORS = {
+  low:      ['#94a3b8','rgba(148,163,184,0.15)'],
+  medium:   ['#fbbf24','rgba(251,191,36,0.15)'],
+  high:     ['#f97316','rgba(249,115,22,0.15)'],
+  critical: ['#ef4444','rgba(239,68,68,0.15)'],
+};
+const RISK_LEVEL_STYLES = {
+  low:      { bg:'rgba(34,197,94,0.12)',  border:'rgba(34,197,94,0.3)',  color:'#22c55e' },
+  medium:   { bg:'rgba(251,191,36,0.12)', border:'rgba(251,191,36,0.3)', color:'#fbbf24' },
+  high:     { bg:'rgba(249,115,22,0.12)', border:'rgba(249,115,22,0.3)', color:'#f97316' },
+  critical: { bg:'rgba(239,68,68,0.14)',  border:'rgba(239,68,68,0.4)',  color:'#ef4444' },
+};
+const ROLE_ICONS = {
+  'PR Crisis Lead':                     '<i class="fa-solid fa-bullhorn"></i>',
+  'Corporate Legal Advisor':            '<i class="fa-solid fa-scale-balanced"></i>',
+  'Investor Relations Executive':       '<i class="fa-solid fa-chart-line"></i>',
+  'Political Communications Strategist':'<i class="fa-solid fa-landmark"></i>',
+  'CEO Communications Advisor':         '<i class="fa-solid fa-user-tie"></i>',
+};
+const POSTURE_LABELS = {
+  proactive_engage:    { label:'Proactive Engage',   color:'#22c55e' },
+  acknowledge_monitor: { label:'Acknowledge & Monitor', color:'#fbbf24' },
+  hold_and_watch:      { label:'Hold & Watch',       color:'#f97316' },
+  no_comment:          { label:'No Comment',         color:'#ef4444' },
+};
+const TYPE_ICONS = {
+  negative_article:     '<i class="fa-solid fa-newspaper"></i>',
+  high_risk_journalist: '<i class="fa-solid fa-triangle-exclamation"></i>',
+  viral_story:          '<i class="fa-solid fa-fire"></i>',
+  keyword_match:        '<i class="fa-solid fa-magnifying-glass"></i>',
+};
+
+function timeAgo(iso) {
+  if (!iso) return '—';
+  const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (diff < 60)    return diff + 's ago';
+  if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+let currentFilter = '', currentSeverity = '';
+
+function setFilter(value, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = value === 'critical' ? '' : value;
+  currentSeverity = value === 'critical' ? 'critical' : '';
+  loadAlerts();
+}
+
+async function loadAlerts() {
+  const params = new URLSearchParams({ status: currentFilter, severity: currentSeverity });
+  const r = await fetch('/api/media/alerts?' + params);
+  const list = await r.json();
+  const el = document.getElementById('alertFeed');
+  const unread = list.filter(a => a.status === 'unread').length;
+  const badge = document.getElementById('unreadBadge');
+  badge.style.display = unread > 0 ? 'inline' : 'none';
+  if (unread > 0) badge.textContent = unread + ' unread';
+
+  if (!list.length) {
+    el.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No alerts. The media landscape is calm.</div></div>';
+    return;
+  }
+
+  el.innerHTML = list.map(a => {
+    const [color, bg] = SEVERITY_COLORS[a.severity] || SEVERITY_COLORS.medium;
+    const icon = TYPE_ICONS[a.type] || '◆';
+    const isUnread = a.status === 'unread';
+    const canCrisis = a.status !== 'resolved';
+    return `<div class="intel-item" style="${isUnread ? 'border-left:2px solid '+color+';padding-left:12px' : ''}">
+      <div class="intel-item-icon" style="font-size:16px">${icon}</div>
+      <div class="intel-item-body" style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:10px;padding:1px 7px;border-radius:999px;background:${bg};color:${color};border:1px solid ${color}40;text-transform:capitalize">${a.severity}</span>
+          <span style="font-size:10px;color:var(--muted)">${(a.type||'').replace(/_/g,' ')}</span>
+          ${isUnread ? '<span style="font-size:9px;background:rgba(239,68,68,0.2);color:#ef4444;padding:1px 5px;border-radius:3px">NEW</span>' : ''}
+        </div>
+        <div class="intel-item-title" style="margin-top:4px">${a.message}</div>
+        <div class="intel-item-meta">${timeAgo(a.created_at)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        ${canCrisis ? `<button class="btn" onclick="openCrisisModal(${a.id},\`${a.message.replace(/`/g,"'")}\`)" style="font-size:10px;padding:4px 10px;color:#fbbf24;border-color:rgba(251,191,36,0.4);white-space:nowrap">⚡ Crisis Intel</button>` : ''}
+        ${a.status !== 'resolved'
+          ? `<button class="btn" onclick="resolve(${a.id},this)" style="font-size:10px;padding:3px 8px;white-space:nowrap">Resolve</button>`
+          : `<button class="btn" onclick="reopen(${a.id},this)" style="font-size:10px;padding:3px 8px;white-space:nowrap;color:var(--muted);border-color:rgba(255,255,255,0.1)">↩ Reopen</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function resolve(alertId, btn) {
+  btn.textContent = '…';
+  btn.disabled = true;
+  await fetch(`/api/media/alerts/${alertId}/resolve`, { method: 'POST' });
+  loadAlerts();
+}
+
+async function reopen(alertId, btn) {
+  btn.textContent = '…';
+  btn.disabled = true;
+  await fetch(`/api/media/alerts/${alertId}/reopen`, { method: 'POST' });
+  loadAlerts();
+}
+
+// ── Crisis Intelligence Modal ─────────────────────────────────────────────
+
+const CRISIS_ROLES = ['PR Crisis Lead','Corporate Legal Advisor','Investor Relations Executive','Political Communications Strategist','CEO Communications Advisor'];
+
+function openCrisisModal(alertId, message) {
+  document.getElementById('ciAlertTitle').textContent = message;
+  document.getElementById('ciLoading').style.display = 'block';
+  document.getElementById('ciResults').style.display = 'none';
+  document.getElementById('ciError').style.display = 'none';
+  document.getElementById('crisisModal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+
+  document.getElementById('ciRoles').innerHTML = CRISIS_ROLES.map(r =>
+    `<span style="font-size:11px;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.5)">${ROLE_ICONS[r]||'◆'} ${r}</span>`
+  ).join('');
+
+  fetchCrisisAnalysis(alertId);
+}
+
+function closeCrisisModal() {
+  document.getElementById('crisisModal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function fetchCrisisAnalysis(alertId) {
+  try {
+    const r = await fetch(`/api/media/alerts/${alertId}/crisis-analysis`, { method: 'POST' });
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    renderCrisisResults(data);
+  } catch(e) {
+    document.getElementById('ciLoading').style.display = 'none';
+    document.getElementById('ciError').style.display = 'block';
+    document.getElementById('ciError').textContent = 'Analysis failed: ' + e.message;
+  }
+}
+
+function renderCrisisResults(data) {
+  document.getElementById('ciLoading').style.display = 'none';
+
+  // Risk banner
+  const rl = data.risk_level || 'medium';
+  const rs = RISK_LEVEL_STYLES[rl] || RISK_LEVEL_STYLES.medium;
+  const banner = document.getElementById('ciRiskBanner');
+  banner.style.background = rs.bg;
+  banner.style.border = '1px solid ' + rs.border;
+  document.getElementById('ciRiskLevel').textContent = rl;
+  document.getElementById('ciRiskLevel').style.color = rs.color;
+  document.getElementById('ciRiskSummary').textContent = data.risk_summary || '';
+
+  // Debate cards
+  const debate = data.debate || [];
+  document.getElementById('ciDebate').innerHTML = debate.map(d => {
+    const icon = ROLE_ICONS[d.role] || '◆';
+    return `<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:18px 20px">
+      <div style="font-size:12px;font-weight:600;color:#eee9df;margin-bottom:12px">${icon} ${d.role}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Risk Assessment</div>
+          <div style="font-size:12px;line-height:1.65;color:rgba(255,255,255,0.75)">${d.risk_assessment||'—'}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Response Posture</div>
+          <div style="font-size:12px;line-height:1.65;color:rgba(255,255,255,0.75)">${d.response_posture||'—'}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Strategic Concerns</div>
+          <div style="font-size:12px;line-height:1.65;color:rgba(255,255,255,0.75)">${d.strategic_concerns||'—'}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Media Prediction</div>
+          <div style="font-size:12px;line-height:1.65;color:rgba(255,255,255,0.75)">${d.media_prediction||'—'}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Final strategy
+  const s = data.strategy || {};
+  const posture = POSTURE_LABELS[s.posture] || { label: s.posture || '—', color: '#94a3b8' };
+  const triggers = (s.escalation_triggers || []).map(t =>
+    `<li style="margin-bottom:4px">${t}</li>`
+  ).join('');
+
+  document.getElementById('ciStrategy').innerHTML = `
+    <div style="background:rgba(255,177,98,0.06);border:1px solid rgba(255,177,98,0.2);border-radius:8px;padding:22px 24px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+        <span style="font-size:11px;padding:4px 14px;border-radius:999px;background:${posture.color}20;color:${posture.color};border:1px solid ${posture.color}40;font-weight:600">${posture.label}</span>
+        <span style="font-size:11px;color:var(--muted)">${s.respond_publicly ? '✓ Public response recommended' : '✗ No public response at this stage'}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        <div style="grid-column:1/-1">
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Overall Risk Assessment</div>
+          <div style="font-size:13px;line-height:1.7;color:rgba(255,255,255,0.85)">${s.overall_risk||'—'}</div>
+        </div>
+        <div style="grid-column:1/-1">
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Positioning Guidance</div>
+          <div style="font-size:13px;line-height:1.7;color:rgba(255,255,255,0.85)">${s.positioning_guidance||'—'}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Media Engagement</div>
+          <div style="font-size:12px;line-height:1.65;color:rgba(255,255,255,0.75)">${s.media_engagement||'—'}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Executive Communications</div>
+          <div style="font-size:12px;line-height:1.65;color:rgba(255,255,255,0.75)">${s.executive_comms||'—'}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Escalation Triggers</div>
+          <ul style="font-size:12px;line-height:1.65;color:rgba(255,255,255,0.75);padding-left:16px;margin:0">${triggers}</ul>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Long-Term Reputation Protection</div>
+          <div style="font-size:12px;line-height:1.65;color:rgba(255,255,255,0.75)">${s.reputation_protection||'—'}</div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('ciResults').style.display = 'block';
+}
+
+loadAlerts();
+</script>
+{% endblock %}

@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Media Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Media Monitor</div>
+    <div class="page-sub" id="monitorSub">Article intelligence &amp; sentiment tracking</div>
+  </div>
+  <div class="page-actions">
+    <a href="/media" class="btn">← Journalists</a>
+    <a href="/media/alerts" class="btn">Alerts</a>
+    <button class="btn" style="color:var(--gold);border-color:rgba(201,168,76,0.4)" onclick="openIngestModal()">+ Ingest Article</button>
+  </div>
+</div>
+
+<div class="page-content">
+
+  <!-- Stats row -->
+  <div style="display:flex;gap:12px;margin-bottom:1.5rem;flex-wrap:wrap">
+    <div class="panel" style="flex:1;min-width:80px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase">Total</div>
+      <div style="font-size:22px;font-weight:600;color:var(--gold)" id="sTotal">—</div>
+    </div>
+    <div class="panel" style="flex:1;min-width:80px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase">Positive</div>
+      <div style="font-size:22px;font-weight:600;color:#22c55e" id="sPositive">—</div>
+    </div>
+    <div class="panel" style="flex:1;min-width:80px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase">Neutral</div>
+      <div style="font-size:22px;font-weight:600;color:#94a3b8" id="sNeutral">—</div>
+    </div>
+    <div class="panel" style="flex:1;min-width:80px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase">Negative</div>
+      <div style="font-size:22px;font-weight:600;color:#ef4444" id="sNegative">—</div>
+    </div>
+    <div class="panel" style="flex:1;min-width:80px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase">Flagged</div>
+      <div style="font-size:22px;font-weight:600;color:#f97316" id="sFlagged">—</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div style="display:flex;gap:10px;margin-bottom:1.5rem;align-items:flex-end;flex-wrap:wrap">
+    <div class="field" style="margin:0">
+      <label class="field-label">Sentiment</label>
+      <select id="fSentiment" onchange="loadArticles()">
+        <option value="">All</option>
+        <option value="positive">Positive</option>
+        <option value="neutral">Neutral</option>
+        <option value="negative">Negative</option>
+      </select>
+    </div>
+    <div class="field" style="margin:0">
+      <label class="field-label">Risk flagged only</label>
+      <select id="fRisk" onchange="loadArticles()">
+        <option value="">All</option>
+        <option value="1">Flagged only</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Article feed -->
+  <div class="intel-feed" id="articleFeed">
+    <div class="intel-item"><div class="intel-item-body text-muted">Loading…</div></div>
+  </div>
+
+</div>
+
+<!-- Ingest Article Modal -->
+<div id="ingestModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center">
+  <div class="panel" style="width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;padding:28px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div class="panel-title">Ingest Article</div>
+      <button class="btn" onclick="closeIngestModal()" style="padding:4px 10px;font-size:10px">✕</button>
+    </div>
+    <div class="field"><label class="field-label">Title *</label><input type="text" id="iTitle" placeholder="Article headline"></div>
+    <div class="field"><label class="field-label">URL</label><input type="url" id="iUrl" placeholder="https://…"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label class="field-label">Publication ID</label><input type="number" id="iPubId" placeholder="Leave blank if unknown"></div>
+      <div class="field"><label class="field-label">Journalist ID</label><input type="number" id="iJid" placeholder="Leave blank if unknown"></div>
+      <div class="field"><label class="field-label">Published Date</label><input type="date" id="iPubDate"></div>
+    </div>
+    <div class="field"><label class="field-label">Content Snippet *</label>
+      <textarea id="iSnippet" rows="5" style="resize:vertical" placeholder="Paste article excerpt or summary for AI analysis…"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn" onclick="closeIngestModal()">Cancel</button>
+      <button class="btn" id="ingestBtn" onclick="ingestArticle()" style="color:var(--gold);border-color:rgba(201,168,76,0.4)">Analyse &amp; Save</button>
+    </div>
+    <div id="ingestResult" style="display:none;margin-top:14px;padding:14px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;font-size:12px"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SENTIMENT_COLORS = { positive:'#22c55e', neutral:'#94a3b8', negative:'#ef4444' };
+
+function sentimentBadge(s) {
+  const c = SENTIMENT_COLORS[s] || '#94a3b8';
+  return `<span style="font-size:10px;padding:1px 7px;border-radius:999px;background:${c}20;color:${c};border:1px solid ${c}40">${s}</span>`;
+}
+
+async function loadStats() {
+  const r = await fetch('/api/media/stats');
+  const s = await r.json();
+  document.getElementById('sTotal').textContent    = s.articles.total;
+  document.getElementById('sPositive').textContent = s.articles.positive;
+  document.getElementById('sNeutral').textContent  = s.articles.neutral;
+  document.getElementById('sNegative').textContent = s.articles.negative;
+  document.getElementById('sFlagged').textContent  = s.articles.flagged;
+  document.getElementById('monitorSub').textContent =
+    `${s.articles.total} articles tracked · ${s.articles.flagged} flagged · ${s.alerts_unread} unread alerts`;
+}
+
+async function loadArticles() {
+  const sentiment = document.getElementById('fSentiment').value;
+  const risk_flag = document.getElementById('fRisk').value;
+  const params    = new URLSearchParams({ sentiment, risk_flag, limit: 60 });
+  const r = await fetch('/api/media/articles?' + params);
+  const list = await r.json();
+  const el = document.getElementById('articleFeed');
+  if (!list.length) {
+    el.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No articles found. Ingest one to get started.</div></div>';
+    return;
+  }
+  el.innerHTML = list.map(a =>
+    `<div class="intel-item">
+      <div class="intel-item-body">
+        <div class="intel-item-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${a.url ? `<a href="${a.url}" target="_blank" style="color:inherit;text-decoration:none">${a.title} ↗</a>` : a.title}
+          ${sentimentBadge(a.sentiment)}
+          ${a.risk_flag ? '<span style="font-size:10px;color:#f97316">⚠ Risk</span>' : ''}
+        </div>
+        <div class="intel-item-meta">
+          ${a.publication_name ? a.publication_name + ' · ' : ''}
+          ${a.journalist_name ? 'by ' + a.journalist_name + ' · ' : ''}
+          ${a.published_at || a.ingested_at?.slice(0,10) || '—'}
+        </div>
+        ${a.sentiment_reasoning ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">${a.sentiment_reasoning}</div>` : ''}
+        ${(a.topics||[]).length ? `<div style="margin-top:5px">${a.topics.map(t=>`<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.06);margin-right:4px">${t}</span>`).join('')}</div>` : ''}
+      </div>
+    </div>`
+  ).join('');
+}
+
+function openIngestModal() {
+  document.getElementById('iPubDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('ingestResult').style.display = 'none';
+  document.getElementById('ingestModal').style.display = 'flex';
+}
+function closeIngestModal() {
+  document.getElementById('ingestModal').style.display = 'none';
+}
+
+async function ingestArticle() {
+  const title   = document.getElementById('iTitle').value.trim();
+  const snippet = document.getElementById('iSnippet').value.trim();
+  if (!title)   { alert('Title is required'); return; }
+  if (!snippet) { alert('Content snippet is required for AI analysis'); return; }
+  const btn = document.getElementById('ingestBtn');
+  btn.textContent = 'Analysing…';
+  btn.disabled = true;
+  const data = {
+    title,
+    url:              document.getElementById('iUrl').value.trim(),
+    publication_id:   document.getElementById('iPubId').value ? parseInt(document.getElementById('iPubId').value) : null,
+    journalist_id:    document.getElementById('iJid').value   ? parseInt(document.getElementById('iJid').value)   : null,
+    published_at:     document.getElementById('iPubDate').value,
+    content_snippet:  snippet,
+  };
+  try {
+    const r = await fetch('/api/media/articles', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    const result = await r.json();
+    btn.textContent = 'Analyse & Save';
+    btn.disabled = false;
+    if (r.ok && result.analysis) {
+      const a = result.analysis;
+      const c = SENTIMENT_COLORS[a.sentiment] || '#94a3b8';
+      document.getElementById('ingestResult').style.display = 'block';
+      document.getElementById('ingestResult').innerHTML =
+        `<div style="color:${c};font-weight:600;margin-bottom:6px">
+          ${a.sentiment.toUpperCase()} · Score: ${(a.sentiment_score*100).toFixed(0)}%
+          ${a.risk_flag ? ' · <span style="color:#f97316">⚠ Risk Flagged</span>' : ''}
+        </div>
+        <div style="color:var(--muted)">${a.reasoning}</div>
+        ${a.topics.length ? `<div style="margin-top:8px">${a.topics.map(t=>`<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.06);margin-right:4px">${t}</span>`).join('')}</div>` : ''}
+        <div style="margin-top:10px;color:var(--gold);font-size:11px">Article saved. Closing in 2s…</div>`;
+      setTimeout(() => { closeIngestModal(); loadArticles(); loadStats(); }, 2000);
+    } else {
+      alert(result.error || 'Failed to ingest article');
+    }
+  } catch (e) {
+    btn.textContent = 'Analyse & Save';
+    btn.disabled = false;
+    alert('Network error');
+  }
+}
+
+loadStats();
+loadArticles();
+</script>
+{% endblock %}

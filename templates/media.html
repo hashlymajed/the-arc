@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Media Relations{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Media Relations</div>
+    <div class="page-sub" id="mediaSubtitle">Journalist database &amp; intelligence</div>
+  </div>
+  <div class="page-actions">
+    <a href="/media/monitor" class="btn">Monitor</a>
+    <a href="/media/alerts" class="btn">Alerts <span id="alertBadge" style="display:none;background:rgba(239,68,68,0.2);color:#ef4444;border-radius:999px;padding:1px 7px;font-size:10px;margin-left:4px"></span></a>
+    <button class="btn" style="color:var(--gold);border-color:rgba(201,168,76,0.4)" onclick="openModal()">+ Add Journalist</button>
+  </div>
+</div>
+
+<div class="page-content">
+
+  <!-- Stats -->
+  <div id="statsRow" style="display:flex;gap:12px;margin-bottom:1.5rem;flex-wrap:wrap">
+    <div class="panel" style="flex:1;min-width:100px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em">Total</div>
+      <div style="font-size:22px;font-weight:600;color:var(--gold)" id="statTotal">—</div>
+    </div>
+    <div class="panel" style="flex:1;min-width:100px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em">Safe</div>
+      <div style="font-size:22px;font-weight:600;color:#22c55e" id="statSafe">—</div>
+    </div>
+    <div class="panel" style="flex:1;min-width:100px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em">Neutral</div>
+      <div style="font-size:22px;font-weight:600;color:#fbbf24" id="statNeutral">—</div>
+    </div>
+    <div class="panel" style="flex:1;min-width:100px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em">Threat</div>
+      <div style="font-size:22px;font-weight:600;color:#ef4444" id="statThreat">—</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div style="display:flex;gap:10px;margin-bottom:1.5rem;align-items:flex-end;flex-wrap:wrap">
+    <div class="field" style="flex:1;min-width:200px;margin:0">
+      <label class="field-label">Search</label>
+      <input type="text" id="filterSearch" placeholder="Name, outlet, beat…" oninput="loadJournalists()">
+    </div>
+    <div class="field" style="margin:0">
+      <label class="field-label">Risk</label>
+      <select id="filterRisk" onchange="loadJournalists()">
+        <option value="">All</option>
+        <option value="safe">Safe</option>
+        <option value="neutral">Neutral</option>
+        <option value="threat">Threat</option>
+      </select>
+    </div>
+    <div class="field" style="margin:0">
+      <label class="field-label">Region</label>
+      <input type="text" id="filterRegion" placeholder="UAE, UK…" oninput="loadJournalists()" style="width:100px">
+    </div>
+  </div>
+
+  <!-- Journalist list -->
+  <div class="intel-feed" id="journalistList">
+    <div class="intel-item"><div class="intel-item-body text-muted">Loading…</div></div>
+  </div>
+
+</div>
+
+<!-- Add Journalist Modal -->
+<div id="addModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center">
+  <div class="panel" style="width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;padding:28px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div class="panel-title">Add Journalist</div>
+      <button class="btn" onclick="closeModal()" style="padding:4px 10px;font-size:10px">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label class="field-label">Name *</label><input type="text" id="fName" placeholder="Full name"></div>
+      <div class="field"><label class="field-label">Email</label><input type="email" id="fEmail" placeholder="email@outlet.com"></div>
+      <div class="field"><label class="field-label">Phone</label><input type="text" id="fPhone" placeholder="+971…"></div>
+      <div class="field"><label class="field-label">Outlet / Publication</label><input type="text" id="fOutlet" placeholder="The National, Bloomberg…"></div>
+      <div class="field"><label class="field-label">Beat / Topics</label><input type="text" id="fBeat" placeholder="Real estate, finance…"></div>
+      <div class="field"><label class="field-label">Region</label><input type="text" id="fRegion" placeholder="UAE, UK, Global…"></div>
+      <div class="field"><label class="field-label">Language</label>
+        <select id="fLanguage">
+          <option>English</option><option>Arabic</option><option>French</option><option>Other</option>
+        </select>
+      </div>
+      <div class="field"><label class="field-label">Relationship Owner</label><input type="text" id="fOwner" placeholder="Comms team member"></div>
+      <div class="field"><label class="field-label">Twitter / X</label><input type="text" id="fTwitter" placeholder="@handle"></div>
+      <div class="field"><label class="field-label">LinkedIn</label><input type="text" id="fLinkedIn" placeholder="linkedin.com/in/…"></div>
+    </div>
+    <div class="field" style="margin-top:4px"><label class="field-label">Notes</label><textarea id="fNotes" rows="3" placeholder="Context, history, key details…" style="resize:vertical"></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="saveJournalist()" style="color:var(--gold);border-color:rgba(201,168,76,0.4)">Save Journalist</button>
+    </div>
+    <div id="saveMsg" style="display:none;margin-top:10px;font-size:12px;color:#22c55e"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function riskBadge(label) {
+  const map = {
+    safe:    ['#22c55e','rgba(34,197,94,0.15)'],
+    neutral: ['#fbbf24','rgba(251,191,36,0.15)'],
+    threat:  ['#ef4444','rgba(239,68,68,0.15)'],
+  };
+  const [color, bg] = map[label] || map.safe;
+  return `<span style="font-size:10px;padding:2px 8px;border-radius:999px;background:${bg};color:${color};border:1px solid ${color}40">${label}</span>`;
+}
+
+async function loadJournalists() {
+  const search = document.getElementById('filterSearch').value;
+  const risk   = document.getElementById('filterRisk').value;
+  const region = document.getElementById('filterRegion').value;
+  const params = new URLSearchParams({ search, risk_label: risk, region });
+  const r = await fetch('/api/media/journalists?' + params);
+  const list = await r.json();
+  const el = document.getElementById('journalistList');
+  if (!list.length) {
+    el.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No journalists found — add one to get started.</div></div>';
+    return;
+  }
+  el.innerHTML = list.map(j => {
+    const effectiveLabel = j.risk_override_label || j.risk_label || 'safe';
+    return `<div class="intel-item" style="cursor:pointer" onclick="location.href='/media/journalist/${j.id}'">
+      <div class="intel-item-icon">◆</div>
+      <div class="intel-item-body">
+        <div class="intel-item-title" style="display:flex;align-items:center;gap:8px">
+          ${j.name} ${riskBadge(effectiveLabel)}
+        </div>
+        <div class="intel-item-meta">${j.beat || '—'} · ${j.region || '—'} · ${j.email || ''}</div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);white-space:nowrap">${(j.relationship_owner||'').substring(0,20)}</div>
+    </div>`;
+  }).join('');
+}
+
+async function loadStats() {
+  const r = await fetch('/api/media/stats');
+  const s = await r.json();
+  document.getElementById('statTotal').textContent   = s.journalists.total;
+  document.getElementById('statSafe').textContent    = s.journalists.safe;
+  document.getElementById('statNeutral').textContent = s.journalists.neutral;
+  document.getElementById('statThreat').textContent  = s.journalists.threat;
+  document.getElementById('mediaSubtitle').textContent =
+    `${s.journalists.total} journalists · ${s.articles.total} articles · ${s.alerts_unread} unread alerts`;
+  if (s.alerts_unread > 0) {
+    const b = document.getElementById('alertBadge');
+    b.textContent = s.alerts_unread;
+    b.style.display = 'inline';
+  }
+}
+
+function openModal() {
+  const m = document.getElementById('addModal');
+  m.style.display = 'flex';
+}
+function closeModal() {
+  document.getElementById('addModal').style.display = 'none';
+  document.getElementById('saveMsg').style.display = 'none';
+}
+
+async function saveJournalist() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { alert('Name is required'); return; }
+  const data = {
+    name,
+    email:               document.getElementById('fEmail').value.trim(),
+    phone:               document.getElementById('fPhone').value.trim(),
+    beat:                document.getElementById('fBeat').value.trim(),
+    region:              document.getElementById('fRegion').value.trim(),
+    language:            document.getElementById('fLanguage').value,
+    relationship_owner:  document.getElementById('fOwner').value.trim(),
+    social_twitter:      document.getElementById('fTwitter').value.trim(),
+    social_linkedin:     document.getElementById('fLinkedIn').value.trim(),
+    notes:               document.getElementById('fNotes').value.trim(),
+  };
+  const r = await fetch('/api/media/journalists', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+  });
+  if (r.ok) {
+    const msg = document.getElementById('saveMsg');
+    msg.textContent = 'Journalist saved.';
+    msg.style.display = 'block';
+    setTimeout(() => { closeModal(); loadJournalists(); loadStats(); }, 800);
+  } else {
+    alert('Error saving journalist');
+  }
+}
+
+loadStats();
+loadJournalists();
+</script>
+{% endblock %}

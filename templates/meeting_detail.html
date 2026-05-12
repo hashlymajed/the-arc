@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% block title %}Meeting MoM{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:14px">
+    <a href="/meetings" class="btn" style="padding:6px 12px"><i class="fa-solid fa-arrow-left"></i></a>
+    <div>
+      <div class="page-title" id="mTitle">Loading…</div>
+      <div class="page-sub" id="mMeta">—</div>
+    </div>
+  </div>
+  <div class="page-actions" id="pageActions"></div>
+</div>
+
+<div class="page-content">
+  <div id="failedBanner" style="display:none;padding:14px;border:1px solid #ef444440;border-radius:8px;color:#ef4444;margin-bottom:16px">
+    <i class="fa-solid fa-circle-xmark"></i> AI processing failed for this meeting.
+  </div>
+
+  <div style="display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start" id="mainGrid">
+
+    <!-- Left panel -->
+    <div>
+      <!-- Summary card -->
+      <div class="panel" style="padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div class="panel-title" style="font-size:11px">Executive Summary</div>
+          <div style="display:flex;gap:4px">
+            <button class="btn tab-btn active" id="btnEn" onclick="toggleLang('en')" style="padding:2px 10px;font-size:10px">EN</button>
+            <button class="btn tab-btn" id="btnAr" onclick="toggleLang('ar')" style="padding:2px 10px;font-size:10px">عر</button>
+          </div>
+        </div>
+        <div id="summaryEn" style="font-size:12px;line-height:1.7;color:var(--muted)">—</div>
+        <div id="summaryAr" style="display:none;font-size:13px;line-height:1.9;color:var(--muted);direction:rtl;text-align:right;font-family:serif">—</div>
+      </div>
+
+      <!-- Participants -->
+      <div class="panel" style="padding:18px;margin-top:14px">
+        <div class="panel-title" style="font-size:11px;margin-bottom:10px"><i class="fa-solid fa-users" style="margin-right:6px"></i>Participants</div>
+        <div id="participantsList" class="text-muted" style="font-size:12px">—</div>
+      </div>
+
+      <!-- Key Topics -->
+      <div class="panel" style="padding:18px;margin-top:14px">
+        <div class="panel-title" style="font-size:11px;margin-bottom:10px"><i class="fa-solid fa-tags" style="margin-right:6px"></i>Key Topics</div>
+        <div id="topicsList">—</div>
+      </div>
+
+      <!-- Vault Record -->
+      <div class="panel" style="padding:18px;margin-top:14px">
+        <div class="panel-title" style="font-size:11px;margin-bottom:10px"><i class="fa-solid fa-layer-group" style="margin-right:6px"></i>Vault Metadata</div>
+        <div id="vaultMeta" class="text-muted" style="font-size:12px;line-height:2">—</div>
+      </div>
+    </div>
+
+    <!-- Right: Tabs -->
+    <div>
+      <div style="display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn tab-btn active" onclick="showTab('transcript',this)"><i class="fa-solid fa-scroll"></i> Transcript</button>
+        <button class="btn tab-btn" onclick="showTab('actions',this)"><i class="fa-solid fa-list-check"></i> Actions <span id="actBadge" style="display:none;font-size:9px;padding:1px 5px;border-radius:999px;background:#f97316;color:#fff;margin-left:4px"></span></button>
+        <button class="btn tab-btn" onclick="showTab('decisions',this)"><i class="fa-solid fa-gavel"></i> Decisions</button>
+        <button class="btn tab-btn" onclick="showTab('risks',this)"><i class="fa-solid fa-triangle-exclamation"></i> Risks &amp; Follow-ups</button>
+      </div>
+
+      <div id="tab-transcript">
+        <div class="intel-feed" id="transcriptFeed">
+          <div class="intel-item"><div class="intel-item-body text-muted">Loading transcript…</div></div>
+        </div>
+      </div>
+
+      <div id="tab-actions" style="display:none">
+        <div class="intel-feed" id="actionsFeed">
+          <div class="intel-item"><div class="intel-item-body text-muted">No action items.</div></div>
+        </div>
+      </div>
+
+      <div id="tab-decisions" style="display:none">
+        <div class="intel-feed" id="decisionsFeed">
+          <div class="intel-item"><div class="intel-item-body text-muted">No decisions recorded.</div></div>
+        </div>
+      </div>
+
+      <div id="tab-risks" style="display:none">
+        <div class="intel-feed" id="risksFeed"></div>
+        <div class="intel-feed" id="followupsFeed" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MID = {{ mid }};
+
+const SPEAKER_COLORS = ['#2DD4BF','#C9A84C','#A78BFA','#22C55E','#F472B6','#60A5FA','#FB923C'];
+const PRIORITY_COLORS = { high:'#ef4444', medium:'#fbbf24', low:'#22c55e' };
+const LANG_STYLES = {
+  'English': 'background:rgba(148,163,184,0.15);color:#94a3b8',
+  'Arabic':  'background:rgba(201,168,76,0.15);color:#C9A84C',
+  'Mixed':   'background:rgba(45,212,191,0.15);color:#2DD4BF',
+};
+
+function speakerColor(label) {
+  const n = parseInt((label || '').replace(/\D/g,'')) || 1;
+  return SPEAKER_COLORS[(n - 1) % SPEAKER_COLORS.length];
+}
+
+function showTab(name, btn) {
+  ['transcript','actions','decisions','risks'].forEach(t =>
+    document.getElementById('tab-' + t).style.display = t === name ? '' : 'none'
+  );
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+function toggleLang(lang) {
+  document.getElementById('summaryEn').style.display = lang === 'en' ? '' : 'none';
+  document.getElementById('summaryAr').style.display = lang === 'ar' ? '' : 'none';
+  document.getElementById('btnEn').classList.toggle('active', lang === 'en');
+  document.getElementById('btnAr').classList.toggle('active', lang === 'ar');
+}
+
+async function loadMeeting() {
+  const r = await fetch('/api/meetings/' + MID);
+  if (!r.ok) {
+    document.getElementById('mTitle').textContent = 'Meeting not found';
+    return;
+  }
+  const m = await r.json();
+
+  document.getElementById('mTitle').textContent = m.title;
+  document.getElementById('mMeta').textContent =
+    (m.meeting_date || m.created_at.slice(0,10)) +
+    (m.vault_archived ? ' · Archived' : '') +
+    (' · Status: ' + m.status);
+
+  if (m.status === 'failed') {
+    document.getElementById('failedBanner').style.display = 'block';
+  }
+
+  // Page actions
+  const actions = [];
+  if (!m.vault_archived && m.status === 'complete') {
+    actions.push(`<button class="btn" onclick="archiveMeeting()" style="font-size:11px"><i class="fa-solid fa-box-archive"></i> Archive to Vault</button>`);
+  }
+  actions.push(`<button class="btn" onclick="deleteMeeting()" style="font-size:11px;color:#ef4444;border-color:rgba(239,68,68,0.3)"><i class="fa-solid fa-trash"></i></button>`);
+  document.getElementById('pageActions').innerHTML = actions.join('');
+
+  // Summary
+  const s = m.summary || {};
+  document.getElementById('summaryEn').textContent = s.summary_en || 'No summary available.';
+  document.getElementById('summaryAr').textContent = s.summary_ar || 'لا يوجد ملخص متاح.';
+
+  // Participants
+  const participants = m.participant_names || [];
+  document.getElementById('participantsList').innerHTML = participants.length
+    ? participants.map((p, i) => {
+        const c = SPEAKER_COLORS[i % SPEAKER_COLORS.length];
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="display:inline-block;width:24px;height:24px;border-radius:50%;background:${c}30;border:1px solid ${c}60;text-align:center;line-height:24px;font-size:10px;color:${c};font-weight:700">${i+1}</span>
+          <span>${p}</span></div>`;
+      }).join('')
+    : '<div class="text-muted">No participants listed.</div>';
+
+  // Key topics
+  const topics = (s.key_topics || []);
+  document.getElementById('topicsList').innerHTML = topics.length
+    ? topics.map(t => `<span style="display:inline-block;font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);margin:2px 4px 2px 0">${t}</span>`).join('')
+    : '<div class="text-muted" style="font-size:12px">No topics extracted.</div>';
+
+  // Vault metadata
+  const keywords = (s.vault_keywords || []);
+  document.getElementById('vaultMeta').innerHTML = [
+    s.vault_category ? `<div><span class="text-muted">Category:</span> ${s.vault_category}</div>` : '',
+    keywords.length  ? `<div><span class="text-muted">Keywords:</span> ${keywords.join(', ')}</div>` : '',
+    m.vault_archived ? `<div style="color:#22c55e"><i class="fa-solid fa-circle-check"></i> Archived in Vault</div>` : '',
+  ].filter(Boolean).join('') || '<div>—</div>';
+
+  // Transcript
+  renderTranscript(m.transcript || []);
+
+  // Actions
+  renderActions(m.action_items || []);
+
+  // Decisions
+  const decEl = document.getElementById('decisionsFeed');
+  if (!(m.decisions || []).length) {
+    decEl.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No confirmed decisions recorded.</div></div>';
+  } else {
+    decEl.innerHTML = m.decisions.map((d, i) =>
+      `<div class="intel-item">
+        <div class="intel-item-icon" style="font-size:13px;color:var(--gold);font-weight:700">${i+1}</div>
+        <div class="intel-item-body"><div class="intel-item-title">${d}</div></div>
+      </div>`
+    ).join('');
+  }
+
+  // Risks
+  const riskEl = document.getElementById('risksFeed');
+  if (!(m.risks || []).length) {
+    riskEl.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No risks identified.</div></div>';
+  } else {
+    riskEl.innerHTML = `<div class="panel-title" style="font-size:11px;margin-bottom:8px;padding:0 2px"><i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;margin-right:6px"></i>Risks &amp; Concerns</div>` +
+      m.risks.map(r =>
+        `<div class="intel-item">
+          <div class="intel-item-icon" style="color:#ef4444"><i class="fa-solid fa-circle-dot" style="font-size:8px"></i></div>
+          <div class="intel-item-body"><div class="intel-item-title">${r}</div></div>
+        </div>`
+      ).join('');
+  }
+
+  // Follow-ups
+  const fuEl = document.getElementById('followupsFeed');
+  if (!(m.followups || []).length) {
+    fuEl.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No follow-ups required.</div></div>';
+  } else {
+    fuEl.innerHTML = `<div class="panel-title" style="font-size:11px;margin-bottom:8px;padding:0 2px"><i class="fa-solid fa-arrow-rotate-right" style="color:#60A5FA;margin-right:6px"></i>Follow-ups</div>` +
+      m.followups.map(f =>
+        `<div class="intel-item">
+          <div class="intel-item-icon" style="color:#60A5FA"><i class="fa-solid fa-arrow-right" style="font-size:10px"></i></div>
+          <div class="intel-item-body">
+            <div class="intel-item-title">${f.description}</div>
+          </div>
+        </div>`
+      ).join('');
+  }
+}
+
+function renderTranscript(items) {
+  const el = document.getElementById('transcriptFeed');
+  if (!items.length) {
+    el.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No transcript available.</div></div>';
+    return;
+  }
+  el.innerHTML = items.map(item => {
+    const c    = speakerColor(item.speaker_label);
+    const ls   = LANG_STYLES[item.language] || LANG_STYLES['English'];
+    const isAr = item.language === 'Arabic' || item.language === 'Mixed';
+    return `<div class="intel-item" style="align-items:flex-start">
+      <div style="min-width:52px;text-align:right;padding-top:2px">
+        <div style="font-size:10px;color:var(--muted);font-family:monospace">${item.timestamp_str || ''}</div>
+      </div>
+      <div class="intel-item-body" style="margin-left:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
+          <span style="font-size:10px;padding:1px 8px;border-radius:999px;background:${c}20;color:${c};border:1px solid ${c}40;font-weight:600">${item.speaker_label || 'Unknown'}</span>
+          <span style="font-size:10px;padding:1px 7px;border-radius:4px;${ls}">${item.language || 'English'}</span>
+        </div>
+        <div style="font-size:13px;line-height:1.7;${isAr ? 'direction:rtl;text-align:right;font-family:serif' : ''}">${item.text || ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderActions(items) {
+  const el    = document.getElementById('actionsFeed');
+  const badge = document.getElementById('actBadge');
+  const open  = items.filter(a => a.status === 'open').length;
+  if (open > 0) {
+    badge.textContent = open;
+    badge.style.display = 'inline';
+  }
+  if (!items.length) {
+    el.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No action items identified.</div></div>';
+    return;
+  }
+  el.innerHTML = items.map(a => {
+    const pc = PRIORITY_COLORS[a.priority] || '#94a3b8';
+    const done = a.status === 'done';
+    return `<div class="intel-item" id="action-${a.id}" style="${done ? 'opacity:0.5' : ''}">
+      <div class="intel-item-icon" style="padding-top:2px">
+        <button onclick="toggleAction(${a.id}, '${done ? 'open' : 'done'}')" style="background:none;border:none;cursor:pointer;padding:0" title="${done ? 'Mark open' : 'Mark done'}">
+          <i class="fa-${done ? 'solid' : 'regular'} fa-circle-check" style="font-size:16px;color:${done ? '#22c55e' : 'rgba(255,255,255,0.2)'}"></i>
+        </button>
+      </div>
+      <div class="intel-item-body">
+        <div class="intel-item-title" style="${done ? 'text-decoration:line-through' : ''}">${a.task}</div>
+        <div class="intel-item-meta" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+          ${a.owner    ? `<span><i class="fa-solid fa-user" style="font-size:9px;margin-right:3px"></i>${a.owner}</span>` : ''}
+          ${a.deadline ? `<span><i class="fa-solid fa-calendar" style="font-size:9px;margin-right:3px"></i>${a.deadline}</span>` : ''}
+          ${a.priority ? `<span style="color:${pc}"><i class="fa-solid fa-flag" style="font-size:9px;margin-right:3px"></i>${a.priority}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleAction(id, newStatus) {
+  await fetch('/api/meetings/actions/' + id + '/status', {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ status: newStatus })
+  });
+  loadMeeting();
+}
+
+async function archiveMeeting() {
+  await fetch('/api/meetings/' + MID + '/archive', { method: 'POST' });
+  loadMeeting();
+}
+
+async function deleteMeeting() {
+  if (!confirm('Delete this meeting? This cannot be undone.')) return;
+  await fetch('/api/meetings/' + MID, { method: 'DELETE' });
+  window.location = '/meetings';
+}
+
+loadMeeting();
+</script>
+{% endblock %}

@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}Meeting Intelligence{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Meeting Intelligence</div>
+    <div class="page-sub" id="meetingsSub">Bilingual MoM · Speaker diarization · Action tracking</div>
+  </div>
+  <div class="page-actions">
+    <button class="btn" style="color:var(--gold);border-color:rgba(201,168,76,0.4)" onclick="openNewModal()">
+      <i class="fa-solid fa-microphone"></i> New Meeting
+    </button>
+  </div>
+</div>
+
+<div class="page-content">
+
+  <!-- Stats -->
+  <div style="display:flex;gap:12px;margin-bottom:1.5rem;flex-wrap:wrap">
+    <div class="panel" style="flex:1;min-width:80px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase">Total</div>
+      <div style="font-size:22px;font-weight:600;color:var(--gold)" id="sTot">—</div>
+    </div>
+    <div class="panel" style="flex:1;min-width:80px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase">Processed</div>
+      <div style="font-size:22px;font-weight:600;color:#22c55e" id="sDone">—</div>
+    </div>
+    <div class="panel" style="flex:1;min-width:80px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase">Open Actions</div>
+      <div style="font-size:22px;font-weight:600;color:#f97316" id="sAct">—</div>
+    </div>
+    <div class="panel" style="flex:1;min-width:80px;padding:14px 18px">
+      <div class="text-muted" style="font-size:10px;text-transform:uppercase">Archived</div>
+      <div style="font-size:22px;font-weight:600;color:#94a3b8" id="sArch">—</div>
+    </div>
+  </div>
+
+  <!-- Meeting list -->
+  <div class="intel-feed" id="meetingsFeed">
+    <div class="intel-item"><div class="intel-item-body text-muted">Loading…</div></div>
+  </div>
+
+</div>
+
+<!-- New Meeting Modal -->
+<div id="newModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.75);align-items:center;justify-content:center">
+  <div class="panel" style="width:620px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:28px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div class="panel-title"><i class="fa-solid fa-microphone" style="color:var(--gold);margin-right:8px"></i>New Meeting</div>
+      <button class="btn" onclick="closeNewModal()" style="padding:4px 10px;font-size:10px">✕</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field" style="grid-column:1/-1">
+        <label class="field-label">Meeting Title <span class="text-muted">(optional — AI will auto-generate)</span></label>
+        <input type="text" id="nTitle" placeholder="e.g. Q2 Brand Strategy Review">
+      </div>
+      <div class="field">
+        <label class="field-label">Meeting Date</label>
+        <input type="date" id="nDate">
+      </div>
+      <div class="field">
+        <label class="field-label">Context / Agenda <span class="text-muted">(optional)</span></label>
+        <input type="text" id="nContext" placeholder="e.g. Q2 planning, media strategy…">
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label class="field-label">Known Participants <span class="text-muted">(optional — one per line)</span></label>
+        <textarea id="nParticipants" rows="3" style="resize:vertical" placeholder="Ahmed Al Mansoori — VP Communications&#10;Sarah Chen — Head of Brand&#10;…"></textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label class="field-label">Transcript / Meeting Notes <span style="color:#ef4444">*</span></label>
+        <textarea id="nTranscript" rows="10" style="resize:vertical;font-family:monospace;font-size:12px"
+          placeholder="Paste your meeting transcript here. Supports:&#10;&#10;• Raw text notes&#10;• Timestamped transcripts  [00:01:30] Speaker: text&#10;• Arabic, English, or mixed-language content&#10;• Auto-exported transcripts from Zoom / Teams / Meet&#10;&#10;The AI will identify speakers, detect languages, extract decisions and action items."></textarea>
+      </div>
+    </div>
+
+    <div id="newProgress" style="display:none;margin-top:14px;padding:14px;border:1px solid rgba(201,168,76,0.3);border-radius:6px">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--gold)">
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        <span id="newProgressText">Analysing meeting with Gemini…</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">
+        Detecting speakers · Extracting decisions · Generating bilingual summary
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn" onclick="closeNewModal()">Cancel</button>
+      <button class="btn" id="newBtn" onclick="submitMeeting()" style="color:var(--gold);border-color:rgba(201,168,76,0.4)">
+        <i class="fa-solid fa-wand-magic-sparkles"></i> Generate MoM
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STATUS_COLORS = { complete:'#22c55e', processing:'#fbbf24', failed:'#ef4444' };
+const STATUS_ICONS  = { complete:'fa-circle-check', processing:'fa-spinner fa-spin', failed:'fa-circle-xmark' };
+
+function statusBadge(s) {
+  const c = STATUS_COLORS[s] || '#94a3b8';
+  const icon = STATUS_ICONS[s] || 'fa-circle';
+  return `<span style="font-size:10px;padding:2px 8px;border-radius:999px;background:${c}20;color:${c};border:1px solid ${c}40">
+    <i class="fa-solid ${icon}" style="margin-right:4px"></i>${s}</span>`;
+}
+
+async function loadStats() {
+  const r = await fetch('/api/meetings/stats');
+  const s = await r.json();
+  document.getElementById('sTot').textContent  = s.total;
+  document.getElementById('sDone').textContent = s.complete;
+  document.getElementById('sAct').textContent  = s.open_actions;
+  document.getElementById('sArch').textContent = s.archived;
+  document.getElementById('meetingsSub').textContent =
+    `${s.total} meeting${s.total !== 1 ? 's' : ''} · ${s.open_actions} open action${s.open_actions !== 1 ? 's' : ''}`;
+}
+
+async function loadMeetings() {
+  const r = await fetch('/api/meetings');
+  const list = await r.json();
+  const el = document.getElementById('meetingsFeed');
+  if (!list.length) {
+    el.innerHTML = '<div class="intel-item"><div class="intel-item-body text-muted">No meetings yet. Click <strong>New Meeting</strong> to process your first transcript.</div></div>';
+    return;
+  }
+  el.innerHTML = list.map(m => {
+    const archived = m.vault_archived ? '<span style="font-size:10px;color:#94a3b8;margin-left:6px"><i class="fa-solid fa-box-archive"></i> Archived</span>' : '';
+    return `<div class="intel-item" style="cursor:pointer" onclick="window.location='/meetings/${m.id}'">
+      <div class="intel-item-icon" style="font-size:16px;color:var(--gold)"><i class="fa-solid fa-comments"></i></div>
+      <div class="intel-item-body">
+        <div class="intel-item-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${m.title} ${statusBadge(m.status)} ${archived}
+        </div>
+        <div class="intel-item-meta">
+          ${m.meeting_date || m.created_at.slice(0,10)}
+          ${m.open_actions ? ' · <span style="color:#f97316"><i class="fa-solid fa-circle-dot" style="font-size:8px"></i> ' + m.open_actions + ' open action' + (m.open_actions > 1 ? 's' : '') + '</span>' : ''}
+          ${m.transcript_lines ? ' · ' + m.transcript_lines + ' transcript lines' : ''}
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted)">${m.created_at.slice(0,16).replace('T',' ')}</div>
+    </div>`;
+  }).join('');
+}
+
+function openNewModal() {
+  document.getElementById('nDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('newModal').style.display = 'flex';
+}
+function closeNewModal() {
+  document.getElementById('newModal').style.display = 'none';
+}
+
+async function submitMeeting() {
+  const transcript = document.getElementById('nTranscript').value.trim();
+  if (!transcript) { alert('Transcript is required'); return; }
+  const btn = document.getElementById('newBtn');
+  btn.disabled = true;
+  document.getElementById('newProgress').style.display = 'block';
+
+  const steps = ['Detecting speakers…', 'Identifying languages…', 'Extracting decisions & actions…', 'Generating bilingual summary…', 'Archiving to Vault…'];
+  let si = 0;
+  const ticker = setInterval(() => {
+    document.getElementById('newProgressText').textContent = steps[si % steps.length];
+    si++;
+  }, 3000);
+
+  try {
+    const r = await fetch('/api/meetings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        title:                 document.getElementById('nTitle').value.trim(),
+        meeting_date:          document.getElementById('nDate').value,
+        context:               document.getElementById('nContext').value.trim(),
+        participant_names_text: document.getElementById('nParticipants').value.trim(),
+        transcript,
+      })
+    });
+    clearInterval(ticker);
+    const result = await r.json();
+    if (r.ok) {
+      window.location = '/meetings/' + result.id;
+    } else {
+      alert(result.error || 'Processing failed');
+      btn.disabled = false;
+      document.getElementById('newProgress').style.display = 'none';
+    }
+  } catch (e) {
+    clearInterval(ticker);
+    btn.disabled = false;
+    document.getElementById('newProgress').style.display = 'none';
+    alert('Network error');
+  }
+}
+
+loadStats();
+loadMeetings();
+</script>
+{% endblock %}

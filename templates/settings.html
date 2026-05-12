@@ -26,6 +26,17 @@
           <label class="field-label">Anthropic API Key (optional — for Claude fallback)</label>
           <input type="password" id="anthropicKey" value="{{ settings.anthropic_api_key or '' }}" placeholder="sk-ant-…">
         </div>
+        <div class="field">
+          <label class="field-label"><i class="fa-solid fa-water" style="color:var(--gold);margin-right:6px"></i>Meltwater API Key</label>
+          <input type="password" id="meltwaterKey" value="{{ settings.meltwater_api_key or '' }}" placeholder="Your Meltwater user-key…">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">
+            Found in Meltwater → Settings → API Access. <a href="/meltwater" style="color:var(--gold)">Configure sync →</a>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Default Mention Keyword</label>
+          <input type="text" id="mentionKeyword" value="{{ settings.mention_keyword or 'Aldar Properties' }}" placeholder="Brand name to monitor">
+        </div>
       </div>
     </div>
 
@@ -106,6 +117,8 @@ async function saveSettings() {
   const payload = {
     gemini_api_key:    document.getElementById('geminiKey').value,
     anthropic_api_key: document.getElementById('anthropicKey').value,
+    meltwater_api_key: document.getElementById('meltwaterKey').value,
+    mention_keyword:   document.getElementById('mentionKeyword').value,
     vault_path:        document.getElementById('vaultPath').value,
     news_db_path:      document.getElementById('newsDbPath').value,
     vector_db_path:    document.getElementById('vectorDbPath').value,

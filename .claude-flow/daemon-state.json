@@ -1,0 +1,140 @@
+{
+  "running": true,
+  "startedAt": "2026-05-12T06:22:19.739Z",
+  "workers": {
+    "map": {
+      "runCount": 4,
+      "successCount": 4,
+      "failureCount": 0,
+      "averageDurationMs": 15.5,
+      "isRunning": false,
+      "nextRun": "2026-05-12T08:52:21.064Z",
+      "lastStartedAt": "2026-05-12T07:07:20.604Z",
+      "lastRun": "2026-05-12T07:07:20.605Z"
+    },
+    "audit": {
+      "runCount": 4,
+      "successCount": 4,
+      "failureCount": 0,
+      "averageDurationMs": 100796.75,
+      "isRunning": false,
+      "nextRun": "2026-05-12T08:51:04.161Z",
+      "lastStartedAt": "2026-05-12T06:57:24.827Z",
+      "lastRun": "2026-05-12T07:01:03.123Z"
+    },
+    "optimize": {
+      "runCount": 3,
+      "successCount": 3,
+      "failureCount": 0,
+      "averageDurationMs": 99585.33333333333,
+      "isRunning": true,
+      "nextRun": "2026-05-12T08:46:19.006Z",
+      "lastStartedAt": "2026-05-12T08:46:19.068Z",
+      "lastRun": "2026-05-12T07:01:18.692Z"
+    },
+    "consolidate": {
+      "runCount": 2,
+      "successCount": 2,
+      "failureCount": 0,
+      "averageDurationMs": 146,
+      "isRunning": false,
+      "nextRun": "2026-05-12T08:58:20.467Z",
+      "lastStartedAt": "2026-05-12T06:58:20.095Z",
+      "lastRun": "2026-05-12T06:58:20.243Z"
+    },
+    "testgaps": {
+      "runCount": 2,
+      "successCount": 2,
+      "failureCount": 0,
+      "averageDurationMs": 160563,
+      "isRunning": false,
+      "nextRun": "2026-05-12T08:55:41.691Z",
+      "lastStartedAt": "2026-05-12T06:52:31.354Z",
+      "lastRun": "2026-05-12T06:55:41.064Z"
+    },
+    "predict": {
+      "runCount": 0,
+      "successCount": 0,
+      "failureCount": 0,
+      "averageDurationMs": 0,
+      "isRunning": false
+    },
+    "document": {
+      "runCount": 0,
+      "successCount": 0,
+      "failureCount": 0,
+      "averageDurationMs": 0,
+      "isRunning": false
+    }
+  },
+  "config": {
+    "autoStart": false,
+    "logDir": "/Users/mayed/aldar the arc 2026/.claude-flow/logs",
+    "stateFile": "/Users/mayed/aldar the arc 2026/.claude-flow/daemon-state.json",
+    "maxConcurrent": 2,
+    "workerTimeoutMs": 960000,
+    "resourceThresholds": {
+      "maxCpuLoad": 3.2,
+      "minFreeMemoryPercent": 5
+    },
+    "workers": [
+      {
+        "type": "map",
+        "intervalMs": 900000,
+        "offsetMs": 0,
+        "priority": "normal",
+        "description": "Codebase mapping",
+        "enabled": true
+      },
+      {
+        "type": "audit",
+        "intervalMs": 600000,
+        "offsetMs": 120000,
+        "priority": "critical",
+        "description": "Security analysis",
+        "enabled": true
+      },
+      {
+        "type": "optimize",
+        "intervalMs": 900000,
+        "offsetMs": 240000,
+        "priority": "high",
+        "description": "Performance optimization",
+        "enabled": true
+      },
+      {
+        "type": "consolidate",
+        "intervalMs": 1800000,
+        "offsetMs": 360000,
+        "priority": "low",
+        "description": "Memory consolidation",
+        "enabled": true
+      },
+      {
+        "type": "testgaps",
+        "intervalMs": 1200000,
+        "offsetMs": 480000,
+        "priority": "normal",
+        "description": "Test coverage analysis",
+        "enabled": true
+      },
+      {
+        "type": "predict",
+        "intervalMs": 600000,
+        "offsetMs": 0,
+        "priority": "low",
+        "description": "Predictive preloading",
+        "enabled": false
+      },
+      {
+        "type": "document",
+        "intervalMs": 3600000,
+        "offsetMs": 0,
+        "priority": "low",
+        "description": "Auto-documentation",
+        "enabled": false
+      }
+    ]
+  },
+  "savedAt": "2026-05-12T08:46:19.068Z"
+}

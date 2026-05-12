@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-05-12T06:55:40.836Z",
+  "mode": "headless",
+  "workerType": "testgaps",
+  "model": "sonnet",
+  "durationMs": 189368,
+  "executionId": "testgaps_1778568751468_3wft7i",
+  "success": false,
+  "findings": {
+    "sections": [],
+    "codeBlocks": []
+  },
+  "rawOutputPreview": "API Error: Unable to connect to API (ConnectionRefused)\n",
+  "rawOutputLength": 56
+}

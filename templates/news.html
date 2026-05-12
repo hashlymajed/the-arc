@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}News Archive{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">News Archive</div>
+    <div class="page-sub">{{ total }} articles · aldar.com · {{ years }}</div>
+  </div>
+  <div class="page-actions">
+    <button class="btn" onclick="runScraper()">↻ Sync Latest</button>
+  </div>
+</div>
+
+<div class="page-content">
+
+  <!-- Filters -->
+  <div style="display:flex;gap:10px;margin-bottom:1.5rem;align-items:flex-end;flex-wrap:wrap">
+    <div class="field" style="flex:1;min-width:200px;margin:0">
+      <label class="field-label">Search</label>
+      <input type="text" id="newsSearch" placeholder="Search articles…" oninput="filterNews()">
+    </div>
+    <div class="field" style="margin:0">
+      <label class="field-label">Year</label>
+      <select id="newsYear" onchange="filterNews()">
+        <option value="">All Years</option>
+        {% for y in year_list %}<option value="{{ y }}">{{ y }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <!-- Article list -->
+  <div class="intel-feed" id="articleList">
+    {% for a in articles %}
+    <div class="intel-item article-row" data-title="{{ a.title|lower }}" data-year="{{ a.year }}" onclick="showArticle({{ a.id }})">
+      <div class="intel-item-icon">◆</div>
+      <div class="intel-item-body">
+        <div class="intel-item-title">{{ a.title }}</div>
+        <div class="intel-item-meta">{{ a.date_string }} · <a href="{{ a.url }}" target="_blank" onclick="event.stopPropagation()" style="color:var(--muted)">aldar.com ↗</a></div>
+      </div>
+    </div>
+    {% else %}
+    <div class="intel-item">
+      <div class="intel-item-body text-muted">No articles — <a href="#" onclick="runScraper()" style="color:var(--gold)">run scraper</a> to ingest from aldar.com</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Article detail -->
+  <div id="articleDetail" style="display:none;margin-top:1.5rem">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title" id="articleTitle">—</div>
+        <button class="btn" onclick="document.getElementById('articleDetail').style.display='none'" style="padding:4px 10px;font-size:10px">✕</button>
+      </div>
+      <div class="panel-body">
+        <div class="text-muted small" id="articleMeta" style="margin-bottom:1rem"></div>
+        <div id="articleContent" style="font-family:'Instrument Serif',serif;font-size:1rem;line-height:2;white-space:pre-wrap;max-height:500px;overflow-y:auto"></div>
+        <div style="margin-top:1rem;display:flex;gap:8px">
+          <button class="btn" onclick="useDraft()" style="font-size:10px;padding:5px 10px;color:var(--gold);border-color:rgba(201,168,76,0.4)">→ Use as Draft Context</button>
+          <a id="articleSourceLink" href="#" target="_blank" class="btn" style="font-size:10px;padding:5px 10px">↗ Original</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentArticle = null;
+
+function filterNews() {
+  const q = document.getElementById('newsSearch').value.toLowerCase();
+  const y = document.getElementById('newsYear').value;
+  document.querySelectorAll('.article-row').forEach(row => {
+    const matchQ = !q || row.dataset.title.includes(q);
+    const matchY = !y || row.dataset.year === y;
+    row.style.display = (matchQ && matchY) ? '' : 'none';
+  });
+}
+
+async function showArticle(id) {
+  const r = await fetch('/api/news/' + id);
+  if (!r.ok) return;
+  const a = await r.json();
+  currentArticle = a;
+  document.getElementById('articleTitle').textContent   = a.title;
+  document.getElementById('articleMeta').textContent    = a.date_string + ' · ' + a.url;
+  document.getElementById('articleContent').textContent = a.content;
+  document.getElementById('articleSourceLink').href     = a.url;
+  document.getElementById('articleDetail').style.display = 'block';
+  document.getElementById('articleDetail').scrollIntoView({ behavior: 'smooth' });
+}
+
+function useDraft() {
+  if (!currentArticle) return;
+  const qs = new URLSearchParams({ vault_context: currentArticle.title + '\n\n' + currentArticle.content.slice(0, 800) });
+  window.location.href = '/draft/new?' + qs.toString();
+}
+
+async function runScraper() {
+  if (!confirm('Run the Aldar.com scraper? This may take several minutes.')) return;
+  const r = await fetch('/api/news/scrape', { method: 'POST' });
+  const d = await r.json();
+  alert(d.message || 'Scraper started in background');
+}
+</script>
+{% endblock %}

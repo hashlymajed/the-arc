@@ -1,0 +1,216 @@
+{
+  "timestamp": "2026-05-12T07:01:18.571Z",
+  "mode": "headless",
+  "workerType": "optimize",
+  "model": "sonnet",
+  "durationMs": 102183,
+  "executionId": "optimize_1778569176388_pjl7mw",
+  "success": true,
+  "findings": {
+    "sections": [
+      {
+        "title": "Performance Analysis",
+        "content": "\nThis is a Python/FastAPI + Jinja2 + vanilla JS app — no React. The \"unnecessary re-renders\" category maps to DOM inefficiency in JS, which is minimal here. The real issues are in the Python backend.\n\n---\n\n",
+        "level": 2
+      },
+      {
+        "title": "1. N+1 Query / Filesystem Walk Patterns",
+        "content": "\n**Severity: HIGH** — `api/intelligence/analyze` endpoint (`app.py:165`, `vault.py:108`)\n\n`/api/intelligence/analyze` calls `list_docs()` once (1 `os.walk`), then calls `get_doc_content()` for each of up to 60 docs — and each call does a **full vault `os.walk` to find the file**:\n\n```python\n",
+        "level": 3
+      },
+      {
+        "title": "vault.py:108 — called 60 times, each walks the entire vault",
+        "content": "def get_doc_content(filename: str, settings: dict) -> dict:\n    vault_path = settings.get('vault_path') or DEFAULT_VAULT_PATH\n    for root, _, files in os.walk(vault_path):   # ← full walk per call\n        if filename in files:\n            ...\n```\n\nFix: build a filename→path index from `list_docs` once, then do direct opens:\n\n```python\ndef _build_path_index(vault_path: str) -> dict[str, str]:\n    index = {}\n    for root, _, files in os.walk(vault_path):\n        for f in files:\n            if f.endswith('.md'):\n                index[f] = os.path.join(root, f)\n    return index\n\ndef get_doc_content(filename: str, settings: dict, path_index: dict = None) -> dict:\n    vault_path = settings.get('vault_path') or DEFAULT_VAULT_PATH\n    if path_index is None:\n        path_index = _build_path_index(vault_path)\n    path = path_index.get(filename)\n    if not path:\n        return {'filename': filename, 'title': filename, 'content': 'File not found.'}\n    with open(path, encoding='utf-8', errors='replace') as f:\n        content = f.read()\n    return {'filename': filename, 'title': filename.replace('.md','').replace('_',' '), 'content': content}\n```\n\nThen in `app.py:174`:\n```python\npath_index = vault._build_path_index(s.get('vault_path') or vault.DEFAULT_VAULT_PATH)\nfor d in docs_meta[:60]:\n    content = vault.get_doc_content(d['filename'], s, path_index)\n```\n\n**Severity: MEDIUM** — Stats computed by fetching rows instead of using `COUNT` (`app.py:56-62`, `app.py:229`)\n\n```python\n",
+        "level": 1
+      },
+      {
+        "title": "app.py:56 — loads 20 rows to count by status (and LIMIT 20 means counts are wrong anyway)",
+        "content": "stats = {\n    'drafts': sum(1 for d in all_drafts if d['status'] == 'draft'),\n    ...\n}\n\n",
+        "level": 1
+      },
+      {
+        "title": "app.py:226 — loads 500 full rows just to count",
+        "content": "all_d = list_drafts(limit=500)\nreturn {\n    'drafts': sum(1 for d in all_d if d['status'] == 'draft'),\n    ...\n}\n```\n\nFix in `db.py`:\n```python\ndef count_drafts_by_status() -> dict:\n    conn = get_conn()\n    rows = conn.execute(\n        \"SELECT status, COUNT(*) as n FROM drafts GROUP BY status\"\n    ).fetchall()\n    conn.close()\n    return {r['status']: r['n'] for r in rows}\n```\n\n---\n\n",
+        "level": 1
+      },
+      {
+        "title": "2. No React — JS DOM Notes",
+        "content": "\nThe app uses vanilla JS (`static/js/arc.js`). The only JS inefficiency is minor: `loadNavCounts()` fires on every page load and opens a full `/api/stats` call, which itself fetches up to 500 DB rows (see above). Fixing `/api/stats` to use `COUNT` queries eliminates this overhead.\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "3. Caching Opportunities",
+        "content": "\n**`init_db()` called on every request** (`app.py` — all routes)\n\n`init_db()` executes a full `executescript` (5 `CREATE TABLE IF NOT EXISTS`, 1 `CREATE INDEX`, 1 `CREATE TRIGGER`) on every single request. After first boot it's a no-op logically, but SQLite still parses and evaluates it.\n\nFix — call it once at startup:\n```python\n",
+        "level": 3
+      },
+      {
+        "title": "app.py, after app is defined",
+        "content": "from api.db import init_db as _init_db\n_init_db()\n\n",
+        "level": 1
+      },
+      {
+        "title": "Remove all per-route `init_db()` calls",
+        "content": "```\n\n**`get_settings()` called repeatedly per request** (`app.py:23-26`)\n\n`_settings()` opens a DB connection, queries all settings, closes — on every route that needs settings. Some routes call it multiple times indirectly.\n\nFix — cache with a short TTL (settings change rarely):\n```python\nimport time\n_settings_cache: dict = {}\n_settings_ts: float = 0.0\n_SETTINGS_TTL = 30  # seconds\n\ndef _settings() -> dict:\n    global _settings_cache, _settings_ts\n    if time.monotonic() - _settings_ts < _SETTINGS_TTL:\n        return _settings_cache\n    from api.db import get_settings\n    _settings_cache = get_settings()\n    _settings_ts = time.monotonic()\n    return _settings_cache\n```\n\n**`vault_stats()` calls `list_docs()` internally, and callers also call `list_docs()` separately** (`app.py:121-128`, `vault.py:132-147`)\n\nThe `/vault` route calls both `list_docs(s)` and `vault_stats(s)`. `vault_stats` internally calls `list_docs(s)` again — two full `os.walk` calls per page load.\n\nFix in `vault.py`:\n```python\ndef vault_stats(settings: dict, docs: list = None) -> dict:\n    vector_path = settings.get('vector_db_path') or DEFAULT_VECTOR_PATH\n    meta = _read_meta(vector_path)\n    if docs is None:\n        docs = list_docs(settings)\n    ...\n    return {'doc_count': len(docs), ...}\n```\n\nThen in `app.py`:\n```python\ndocs = list_docs(s)\nvstats = vault_stats(s, docs=docs)\n```\n\n**Dashboard opens news DB twice** (`app.py:43-48` and `app.py:61` via `_count_news`)\n\nThe dashboard fetches 8 recent articles (one connection), then calls `_count_news()` which opens a second connection just for `COUNT(*)`. Combine into one query:\n\n```python\nconn = sqlite3.connect(news_db)\nconn.row_factory = sqlite3.Row\nrows = conn.execute(\"SELECT id, title, date_string FROM articles ORDER BY scraped_at DESC LIMIT 8\").fetchall()\ntotal_row = conn.execute(\"SELECT COUNT(*) FROM articles\").fetchone()\nrecent_news = [dict(r) for r in rows]\nnews_total = total_row[0]\nconn.close()\n```\n\n**`genai.Client` recreated per request** (`ai.py:9-10`)\n\n```python\n",
+        "level": 1
+      },
+      {
+        "title": "ai.py:9 — new HTTP client on every generate/refine/translate call",
+        "content": "def _client(api_key: str) -> genai.Client:\n    return genai.Client(api_key=api_key)\n```\n\nFix — cache by key:\n```python\n_clients: dict[str, genai.Client] = {}\n\ndef _client(api_key: str) -> genai.Client:\n    if api_key not in _clients:\n        _clients[api_key] = genai.Client(api_key=api_key)\n    return _clients[api_key]\n```\n\n---\n\n",
+        "level": 1
+      },
+      {
+        "title": "4. Memory Leaks (Unclosed File Handles)",
+        "content": "\n**`vault.py` lines 14, 86, 113** — files opened without context managers:\n\n```python\n",
+        "level": 3
+      },
+      {
+        "title": "vault.py:14",
+        "content": "return json.load(open(p))              # handle leaked on exception\n\n",
+        "level": 1
+      },
+      {
+        "title": "vault.py:86",
+        "content": "json.dump(meta, open(..., 'w'))        # handle leaked on exception\n\n",
+        "level": 1
+      },
+      {
+        "title": "vault.py:113",
+        "content": "content = open(path, ...).read()       # handle leaked on exception\n```\n\nCPython's reference counting will close these, but this is undefined behaviour in other runtimes and masks real bugs. Fix:\n\n```python\n",
+        "level": 1
+      },
+      {
+        "title": "vault.py:13",
+        "content": "with open(p) as f:\n    return json.load(f)\n\n",
+        "level": 1
+      },
+      {
+        "title": "vault.py:86",
+        "content": "with open(os.path.join(vector_path, 'db_meta.json'), 'w') as f:\n    json.dump(meta, f)\n\n",
+        "level": 1
+      },
+      {
+        "title": "vault.py:113",
+        "content": "with open(path, encoding='utf-8', errors='replace') as f:\n    content = f.read()\n```\n\n**SQLite connections not guarded against exceptions** (`db.py` — all functions)\n\nIf any `conn.execute()` raises, `conn.close()` is skipped. Pattern in every function:\n\n```python\n",
+        "level": 1
+      },
+      {
+        "title": "db.py:74 — conn.close() skipped if execute() raises",
+        "content": "def list_drafts(status=None, limit=50):\n    conn = get_conn()\n    ...\n    rows = conn.execute(q, args).fetchall()\n    conn.close()\n    return [dict(r) for r in rows]\n```\n\nFix with context manager. Add to `db.py`:\n```python\nfrom contextlib import contextmanager\n\n@contextmanager\ndef _conn():\n    conn = get_conn()\n    try:\n        yield conn\n    finally:\n        conn.close()\n```\n\nThen each function becomes:\n```python\ndef list_drafts(status=None, limit=50):\n    with _conn() as conn:\n        ...\n        return [dict(r) for r in conn.execute(q, args).fetchall()]\n```\n\n---\n\n",
+        "level": 1
+      },
+      {
+        "title": "5. Redundant Computations",
+        "content": "\n**`drafts_by_status()` already sorted, then re-sorted in Python** (`app.py:108-111`)\n\n```python\n",
+        "level": 3
+      },
+      {
+        "title": "app.py:108 — SQL already sorts DESC, then Python sorts again",
+        "content": "by_status = drafts_by_status()\nall_items = []\nfor items in by_status.values():\n    all_items.extend(items)\nall_items.sort(key=lambda x: x.get('updated_at',''), reverse=True)\n```\n\nSince `drafts_by_status` fetches `ORDER BY updated_at DESC`, flattening and re-sorting is redundant if you use `itertools.chain`:\n\n```python\nfrom itertools import chain\nby_status = drafts_by_status()\nall_items = list(chain.from_iterable(by_status.values()))\n",
+        "level": 1
+      },
+      {
+        "title": "already DESC sorted within each bucket — no re-sort needed",
+        "content": "```\n\n**New `ThreadPoolExecutor` per concurrent call in `analyze()`** (`ai.py:228-231`)\n\n```python\n",
+        "level": 1
+      },
+      {
+        "title": "ai.py:229 — new pool created 3 times in parallel (once per gather task)",
+        "content": "async def _async_call(prompt, tokens=8192):\n    loop = asyncio.get_event_loop()\n    with concurrent.futures.ThreadPoolExecutor() as pool:\n        return await loop.run_in_executor(pool, ...)\n```\n\nFix — share one executor for the three parallel calls:\n```python\nasync def analyze(...):\n    ...\n    executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)\n    loop = asyncio.get_event_loop()\n\n    async def _async_call(prompt, tokens=8192):\n        return await loop.run_in_executor(executor, lambda: call(prompt, tokens))\n\n    try:\n        r1, r2, r3 = await asyncio.gather(\n            _async_call(prompt_a),\n            _async_call(prompt_b),\n            _async_call(prompt_c),\n        )\n    finally:\n        executor.shutdown(wait=False)\n```\n\n---\n\n",
+        "level": 1
+      },
+      {
+        "title": "Summary Table",
+        "content": "| Issue | File | Line | Severity | Fix |\n|---|---|---|---|---|\n| N+1 `os.walk` per doc in intelligence | `vault.py`, `app.py` | 108, 174 | High | Build path index once |\n| Stats via Python loops on full row fetch | `app.py`, `db.py` | 56, 229 | High | SQL `COUNT GROUP BY` |\n| `init_db()` on every request | `app.py` | all routes | Medium | Call once at startup |\n| `get_settings()` on every request | `app.py` | 23 | Medium | 30s in-process cache |\n| `vault_stats` + caller both call `list_docs` | `vault.py`, `app.py` | 135, 123 | Medium | Pass `docs` param |\n| Dashboard opens news DB twice | `app.py` | 43, 61 | Medium | Combine into one query |\n| `genai.Client` recreated per request | `ai.py` | 9 | Medium | Cache by API key |\n| Unclosed file handles | `vault.py` | 14, 86, 113 | Low | Use `with` |\n| SQLite conns not exception-safe | `db.py` | all | Low | Context manager helper |\n| Redundant re-sort after `drafts_by_status` | `app.py` | 108–111 | Low | Remove Python sort |\n| New ThreadPoolExecutor × 3 in `analyze` | `ai.py` | 229 | Low | Share one executor |",
+        "level": 3
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "python",
+        "code": "# vault.py:108 — called 60 times, each walks the entire vault\ndef get_doc_content(filename: str, settings: dict) -> dict:\n    vault_path = settings.get('vault_path') or DEFAULT_VAULT_PATH\n    for root, _, files in os.walk(vault_path):   # ← full walk per call\n        if filename in files:\n            ..."
+      },
+      {
+        "language": "python",
+        "code": "def _build_path_index(vault_path: str) -> dict[str, str]:\n    index = {}\n    for root, _, files in os.walk(vault_path):\n        for f in files:\n            if f.endswith('.md'):\n                index[f] = os.path.join(root, f)\n    return index\n\ndef get_doc_content(filename: str, settings: dict, path_index: dict = None) -> dict:\n    vault_path = settings.get('vault_path') or DEFAULT_VAULT_PATH\n    if path_index is None:\n        path_index = _build_path_index(vault_path)\n    path = path_index.get(filename)\n    if not path:\n        return {'filename': filename, 'title': filename, 'content': 'File not found.'}\n    with open(path, encoding='utf-8', errors='replace') as f:\n        content = f.read()\n    return {'filename': filename, 'title': filename.replace('.md','').replace('_',' '), 'content': content}"
+      },
+      {
+        "language": "python",
+        "code": "path_index = vault._build_path_index(s.get('vault_path') or vault.DEFAULT_VAULT_PATH)\nfor d in docs_meta[:60]:\n    content = vault.get_doc_content(d['filename'], s, path_index)"
+      },
+      {
+        "language": "python",
+        "code": "# app.py:56 — loads 20 rows to count by status (and LIMIT 20 means counts are wrong anyway)\nstats = {\n    'drafts': sum(1 for d in all_drafts if d['status'] == 'draft'),\n    ...\n}\n\n# app.py:226 — loads 500 full rows just to count\nall_d = list_drafts(limit=500)\nreturn {\n    'drafts': sum(1 for d in all_d if d['status'] == 'draft'),\n    ...\n}"
+      },
+      {
+        "language": "python",
+        "code": "def count_drafts_by_status() -> dict:\n    conn = get_conn()\n    rows = conn.execute(\n        \"SELECT status, COUNT(*) as n FROM drafts GROUP BY status\"\n    ).fetchall()\n    conn.close()\n    return {r['status']: r['n'] for r in rows}"
+      },
+      {
+        "language": "python",
+        "code": "# app.py, after app is defined\nfrom api.db import init_db as _init_db\n_init_db()\n\n# Remove all per-route `init_db()` calls"
+      },
+      {
+        "language": "python",
+        "code": "import time\n_settings_cache: dict = {}\n_settings_ts: float = 0.0\n_SETTINGS_TTL = 30  # seconds\n\ndef _settings() -> dict:\n    global _settings_cache, _settings_ts\n    if time.monotonic() - _settings_ts < _SETTINGS_TTL:\n        return _settings_cache\n    from api.db import get_settings\n    _settings_cache = get_settings()\n    _settings_ts = time.monotonic()\n    return _settings_cache"
+      },
+      {
+        "language": "python",
+        "code": "def vault_stats(settings: dict, docs: list = None) -> dict:\n    vector_path = settings.get('vector_db_path') or DEFAULT_VECTOR_PATH\n    meta = _read_meta(vector_path)\n    if docs is None:\n        docs = list_docs(settings)\n    ...\n    return {'doc_count': len(docs), ...}"
+      },
+      {
+        "language": "python",
+        "code": "docs = list_docs(s)\nvstats = vault_stats(s, docs=docs)"
+      },
+      {
+        "language": "python",
+        "code": "conn = sqlite3.connect(news_db)\nconn.row_factory = sqlite3.Row\nrows = conn.execute(\"SELECT id, title, date_string FROM articles ORDER BY scraped_at DESC LIMIT 8\").fetchall()\ntotal_row = conn.execute(\"SELECT COUNT(*) FROM articles\").fetchone()\nrecent_news = [dict(r) for r in rows]\nnews_total = total_row[0]\nconn.close()"
+      },
+      {
+        "language": "python",
+        "code": "# ai.py:9 — new HTTP client on every generate/refine/translate call\ndef _client(api_key: str) -> genai.Client:\n    return genai.Client(api_key=api_key)"
+      },
+      {
+        "language": "python",
+        "code": "_clients: dict[str, genai.Client] = {}\n\ndef _client(api_key: str) -> genai.Client:\n    if api_key not in _clients:\n        _clients[api_key] = genai.Client(api_key=api_key)\n    return _clients[api_key]"
+      },
+      {
+        "language": "python",
+        "code": "# vault.py:14\nreturn json.load(open(p))              # handle leaked on exception\n\n# vault.py:86\njson.dump(meta, open(..., 'w'))        # handle leaked on exception\n\n# vault.py:113\ncontent = open(path, ...).read()       # handle leaked on exception"
+      },
+      {
+        "language": "python",
+        "code": "# vault.py:13\nwith open(p) as f:\n    return json.load(f)\n\n# vault.py:86\nwith open(os.path.join(vector_path, 'db_meta.json'), 'w') as f:\n    json.dump(meta, f)\n\n# vault.py:113\nwith open(path, encoding='utf-8', errors='replace') as f:\n    content = f.read()"
+      },
+      {
+        "language": "python",
+        "code": "# db.py:74 — conn.close() skipped if execute() raises\ndef list_drafts(status=None, limit=50):\n    conn = get_conn()\n    ...\n    rows = conn.execute(q, args).fetchall()\n    conn.close()\n    return [dict(r) for r in rows]"
+      },
+      {
+        "language": "python",
+        "code": "from contextlib import contextmanager\n\n@contextmanager\ndef _conn():\n    conn = get_conn()\n    try:\n        yield conn\n    finally:\n        conn.close()"
+      },
+      {
+        "language": "python",
+        "code": "def list_drafts(status=None, limit=50):\n    with _conn() as conn:\n        ...\n        return [dict(r) for r in conn.execute(q, args).fetchall()]"
+      },
+      {
+        "language": "python",
+        "code": "# app.py:108 — SQL already sorts DESC, then Python sorts again\nby_status = drafts_by_status()\nall_items = []\nfor items in by_status.values():\n    all_items.extend(items)\nall_items.sort(key=lambda x: x.get('updated_at',''), reverse=True)"
+      },
+      {
+        "language": "python",
+        "code": "from itertools import chain\nby_status = drafts_by_status()\nall_items = list(chain.from_iterable(by_status.values()))\n# already DESC sorted within each bucket — no re-sort needed"
+      },
+      {
+        "language": "python",
+        "code": "# ai.py:229 — new pool created 3 times in parallel (once per gather task)\nasync def _async_call(prompt, tokens=8192):\n    loop = asyncio.get_event_loop()\n    with concurrent.futures.ThreadPoolExecutor() as pool:\n        return await loop.run_in_executor(pool, ...)"
+      },
+      {
+        "language": "python",
+        "code": "async def analyze(...):\n    ...\n    executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)\n    loop = asyncio.get_event_loop()\n\n    async def _async_call(prompt, tokens=8192):\n        return await loop.run_in_executor(executor, lambda: call(prompt, tokens))\n\n    try:\n        r1, r2, r3 = await asyncio.gather(\n            _async_call(prompt_a),\n            _async_call(prompt_b),\n            _async_call(prompt_c),\n        )\n    finally:\n        executor.shutdown(wait=False)"
+      }
+    ]
+  },
+  "rawOutputPreview": "Now I have a solid picture of the codebase. Here's the full performance analysis:\n\n---\n\n## Performance Analysis\n\nThis is a Python/FastAPI + Jinja2 + vanilla JS app — no React. The \"unnecessary re-renders\" category maps to DOM inefficiency in JS, which is minimal here. The real issues are in the Python backend.\n\n---\n\n### 1. N+1 Query / Filesystem Walk Patterns\n\n**Severity: HIGH** — `api/intelligence/analyze` endpoint (`app.py:165`, `vault.py:108`)\n\n`/api/intelligence/analyze` calls `list_docs()` once (1 `os.walk`), then calls `get_doc_content()` for each of up to 60 docs — and each call does a **full vault `os.walk` to find the file**:\n\n```python\n# vault.py:108 — called 60 times, each walks the entire vault\ndef get_doc_content(filename: str, settings: dict) -> dict:\n    vault_path = settings.get('vault_path') or DEFAULT_VAULT_PATH\n    for root, _, files in os.walk(vault_path):   # ← full walk per call\n        if filename in files:\n            ...\n```\n\nFix: build a filename→path index from `list_docs` once, then do direct opens:\n\n```python\ndef _build_path_index(vault_path: str) -> dict[str, str]:\n    index = {}\n    for root, _, files in os.walk(vault_path):\n        for f in files:\n            if f.endswith('.md'):\n                index[f] = os.path.join(root, f)\n    return index\n\ndef get_doc_content(filename: str, settings: dict, path_index: dict = None) -> dict:\n    vault_path = settings.get('vault_path') or DEFAULT_VAULT_PATH\n    if path_index is None:\n        path_index = _build_path_index(vault_path)\n    path = path_index.get(filename)\n    if not path:\n        return {'filename': filename, 'title': filename, 'content': 'File not found.'}\n    with open(path, encoding='utf-8', errors='replace') as f:\n        content = f.read()\n    return {'filename': filename, 'title': filename.replace('.md','').replace('_',' '), 'content': content}\n```\n\nThen in `app.py:174`:\n```python\npath_index = vault._build_path_index(s.get('vault_path') or vault.DEFAULT_VAULT_PATH)\nfor d in doc",
+  "rawOutputLength": 10341
+}

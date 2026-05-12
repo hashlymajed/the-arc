@@ -1,0 +1,150 @@
+{
+  "timestamp": "2026-05-12T07:01:03.022Z",
+  "mode": "headless",
+  "workerType": "audit",
+  "model": "haiku",
+  "durationMs": 218177,
+  "executionId": "audit_1778569044845_l2919y",
+  "success": true,
+  "findings": {
+    "vulnerabilities": [
+      {
+        "severity": "high",
+        "category": "Hardcoded Secrets",
+        "file": "api/ai.py",
+        "line": 13,
+        "description": "Gemini API key retrieved from settings without encryption. If settings database is compromised, API key is exposed. Key stored in plaintext in SQLite database via /api/settings endpoint."
+      },
+      {
+        "severity": "high",
+        "category": "Hardcoded Secrets",
+        "file": "app.py",
+        "line": 400,
+        "description": "API key passed via os.getenv('GEMINI_API_KEY') exposed in environment variables. Settings allow users to save API keys in plaintext JSON database."
+      },
+      {
+        "severity": "high",
+        "category": "Missing Authentication",
+        "file": "app.py",
+        "line": null,
+        "description": "NO authentication or authorization implemented. All endpoints (/api/draft/*, /api/vault/*, /api/settings, /api/intelligence/*) are publicly accessible. Anyone can read/modify/delete drafts, change settings, or access vault documents."
+      },
+      {
+        "severity": "high",
+        "category": "Information Disclosure",
+        "file": "app.py",
+        "line": 187,
+        "description": "Error messages returned directly in API responses. Full exception text exposes internal error details, API models, and potentially sensitive information."
+      },
+      {
+        "severity": "medium",
+        "category": "Path Traversal Risk",
+        "file": "app.py",
+        "line": 40,
+        "description": "User-controlled news_db_path setting could point to arbitrary SQLite files without validation. No verification that the database is actually a news database."
+      },
+      {
+        "severity": "medium",
+        "category": "Temporary File Security",
+        "file": ".claude/helpers/github-safe.js",
+        "line": 77,
+        "description": "Temporary files created with world-readable permissions. Body content containing secrets could be read by other users. Race condition window between creation and deletion."
+      },
+      {
+        "severity": "medium",
+        "category": "Dynamic SQL Construction",
+        "file": "api/db.py",
+        "line": 109,
+        "description": "Dynamic SQL in update_draft uses f-string: set_clause = \", \".join(f\"{k} = :{k}\" for k in fields). While whitelist-protected, this is a code smell pattern and risky."
+      },
+      {
+        "severity": "medium",
+        "category": "Plaintext Secret Storage",
+        "file": "api/db.py",
+        "line": 137,
+        "description": "API keys and all settings stored in plaintext SQLite database with no encryption. Accessible via public /api/settings endpoint with no authentication."
+      },
+      {
+        "severity": "medium",
+        "category": "Command Execution Risk",
+        "file": "app.py",
+        "line": 426,
+        "description": "subprocess.Popen with hardcoded scraper but user-controlled cwd. If settings become mutable, could execute arbitrary code."
+      },
+      {
+        "severity": "medium",
+        "category": "Template XSS Risk",
+        "file": "templates/queue.html",
+        "line": null,
+        "description": "Template variables like {{ item.title }} in onclick handlers. While Jinja2 auto-escapes, user-controlled draft content could contain HTML/JavaScript."
+      },
+      {
+        "severity": "low",
+        "category": "No Input Validation",
+        "file": "app.py",
+        "line": 278,
+        "description": "No validation on draft content, title, channel. Could accept extremely large payloads (DoS). No rate limiting on endpoints."
+      },
+      {
+        "severity": "low",
+        "category": "File Permissions",
+        "file": ".claude/helpers/memory.js",
+        "line": null,
+        "description": "Memory and session files world-readable on shared systems. Session context and memory data unencrypted and accessible to other users."
+      },
+      {
+        "severity": "low",
+        "category": "Silent Error Handling",
+        "file": ".claude/helpers/memory.js",
+        "line": 7,
+        "description": "Errors silently caught without logging. Makes debugging difficult and masks security issues."
+      },
+      {
+        "severity": "low",
+        "category": "Missing Security Headers",
+        "file": "app.py",
+        "line": 14,
+        "description": "No CORS, CSP, X-Frame-Options, or other security headers configured. Allows cross-origin requests from any domain."
+      },
+      {
+        "severity": "low",
+        "category": "Unpinned Dependencies",
+        "file": "requirements.txt",
+        "line": null,
+        "description": "Dependencies use >= (chromadb>=0.5, langchain>=0.2). Could install vulnerable versions. Use == for production."
+      }
+    ],
+    "riskScore": 78,
+    "criticalFindings": [
+      "🔴 NO AUTHENTICATION - Application completely open to public access",
+      "🔴 API KEYS IN PLAINTEXT - Gemini keys stored unencrypted in SQLite database",
+      "🔴 ALL ENDPOINTS PUBLIC - Drafts, vault documents, settings accessible/modifiable by anyone",
+      "🔴 ERROR DETAILS LEAKED - Exception messages expose internal system information"
+    ],
+    "recommendations": [
+      "URGENT: Implement authentication (JWT, sessions, OAuth2) for ALL non-public endpoints",
+      "URGENT: Encrypt API keys - use environment variables only, never store in database. Use fernet or AWS Secrets Manager",
+      "URGENT: Add authorization checks - verify user owns resources before allowing modifications",
+      "URGENT: Return generic error messages - log exceptions server-side, don't expose to clients",
+      "Validate all user input - check content size limits, sanitize paths, validate settings",
+      "Fix file permissions - use 0600 for sensitive files, not world-readable",
+      "Secure temp files - use restrictive permissions at creation, guarantee cleanup in finally",
+      "Add security headers - CSP, X-Frame-Options, X-Content-Type-Options, HSTS",
+      "Pin dependency versions - use == instead of >= in requirements.txt",
+      "Implement rate limiting on all public endpoints",
+      "Add database encryption at rest for settings and draft content",
+      "Validate news_db_path - ensure it points to expected location",
+      "Add security event logging (unauthorized access, failed validation, etc.)",
+      "Consider removing public /api/settings endpoint or protect with auth + audit logging",
+      "Enforce HTTPS and set secure cookie flags if adding session auth"
+    ],
+    "severityDistribution": {
+      "high": 4,
+      "medium": 6,
+      "low": 5
+    },
+    "auditDate": "2026-05-12"
+  },
+  "rawOutputPreview": "Here's the comprehensive security analysis report in JSON format:\n\n```json\n{\n  \"vulnerabilities\": [\n    {\n      \"severity\": \"high\",\n      \"category\": \"Hardcoded Secrets\",\n      \"file\": \"api/ai.py\",\n      \"line\": 13,\n      \"description\": \"Gemini API key retrieved from settings without encryption. If settings database is compromised, API key is exposed. Key stored in plaintext in SQLite database via /api/settings endpoint.\"\n    },\n    {\n      \"severity\": \"high\",\n      \"category\": \"Hardcoded Secrets\",\n      \"file\": \"app.py\",\n      \"line\": 400,\n      \"description\": \"API key passed via os.getenv('GEMINI_API_KEY') exposed in environment variables. Settings allow users to save API keys in plaintext JSON database.\"\n    },\n    {\n      \"severity\": \"high\",\n      \"category\": \"Missing Authentication\",\n      \"file\": \"app.py\",\n      \"line\": null,\n      \"description\": \"NO authentication or authorization implemented. All endpoints (/api/draft/*, /api/vault/*, /api/settings, /api/intelligence/*) are publicly accessible. Anyone can read/modify/delete drafts, change settings, or access vault documents.\"\n    },\n    {\n      \"severity\": \"high\",\n      \"category\": \"Information Disclosure\",\n      \"file\": \"app.py\",\n      \"line\": 187,\n      \"description\": \"Error messages returned directly in API responses. Full exception text exposes internal error details, API models, and potentially sensitive information.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"category\": \"Path Traversal Risk\",\n      \"file\": \"app.py\",\n      \"line\": 40,\n      \"description\": \"User-controlled news_db_path setting could point to arbitrary SQLite files without validation. No verification that the database is actually a news database.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"category\": \"Temporary File Security\",\n      \"file\": \".claude/helpers/github-safe.js\",\n      \"line\": 77,\n      \"description\": \"Temporary files created with world-readable permissions. Body content containing secrets could be read by other users",
+  "rawOutputLength": 7469
+}

@@ -1,0 +1,28 @@
+THE ARC — Aldar AI Communications Platform
+==========================================
+
+HOW TO START
+============
+
+ON A MAC:
+  Double-click "start_mac.command"
+  (If blocked: right-click → Open → Open)
+  Browser will open automatically at http://localhost:8000
+
+ON WINDOWS:
+  Double-click "start_windows.bat"
+  Browser will open automatically at http://localhost:8000
+
+  NOTE: Python 3.11+ must be installed.
+  Download free from: https://www.python.org/downloads/
+  (First run will take ~2 minutes to set up)
+
+STANDALONE (no Python needed):
+  Open the "TheArc" folder → run "TheArc" (Mac) or "TheArc.exe" (Windows)
+  Browser will open automatically.
+
+STOP THE SERVER:
+  Press Ctrl+C in the terminal window that opened.
+
+NEED HELP?
+  Contact: mhashly154@gmail.com

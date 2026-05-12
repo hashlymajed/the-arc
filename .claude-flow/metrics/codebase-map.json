@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-05-12T07:07:20.605Z",
+  "projectRoot": "/Users/mayed/aldar the arc 2026",
+  "structure": {
+    "hasPackageJson": false,
+    "hasTsConfig": false,
+    "hasClaudeConfig": true,
+    "hasClaudeFlow": true
+  },
+  "scannedAt": 1778569640605
+}

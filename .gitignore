@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+data/arc.db
+data/chroma_db/
+*.spec
+dist/
+.claude/
+.gemini/
+.mcp.json

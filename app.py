@@ -13,7 +13,6 @@ BASE_DIR   = Path(__file__).parent
 TEMPLATES  = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 app = FastAPI(title="The Arc", docs_url=None, redoc_url=None)
-app.add_middleware(SessionMiddleware, secret_key=os.getenv('SECRET_KEY', 'arc-dev-secret-2026'))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 from api.auth_routes import router as auth_router
@@ -44,6 +43,10 @@ async def auth_guard(request: Request, call_next):
         'role': request.session.get('user_role', 'user'),
     }
     return await call_next(request)
+
+# SessionMiddleware must be added AFTER auth_guard so it wraps it (outermost runs first).
+# add_middleware uses insert(0,...) — later adds become outer.
+app.add_middleware(SessionMiddleware, secret_key=os.getenv('SECRET_KEY', 'arc-dev-secret-2026'))
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):

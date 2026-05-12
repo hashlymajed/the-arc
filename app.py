@@ -129,8 +129,12 @@ async def queue_page(request: Request):
 async def vault_page(request: Request, q: str = ""):
     from api.vault import list_docs, vault_stats
     s = _settings()
-    docs = list_docs(s)
-    vstats = vault_stats(s)
+    try:
+        docs   = list_docs(s)
+        vstats = vault_stats(s)
+    except Exception:
+        docs   = []
+        vstats = {'doc_count': 0, 'chunk_count': 0, 'index_age': '—', 'embedding_model': '—'}
     return TEMPLATES.TemplateResponse(request, "vault.html", {
         "active": "vault",
         "documents": docs, "draft_count": None, "pending_count": None,

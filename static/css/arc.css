@@ -560,11 +560,71 @@ body::after {
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: var(--r-pill); }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-/* ── Responsive ── */
+/* ── Mobile hamburger button ── */
+.mobile-menu-btn {
+  display: none;
+  background: none; border: none;
+  color: var(--muted2); font-size: 17px;
+  padding: 0 1rem; cursor: pointer;
+  align-items: center; justify-content: center;
+  transition: color 0.15s; height: 100%; flex-shrink: 0;
+}
+.mobile-menu-btn:hover { color: var(--text); }
+
+/* ── Nav overlay (mobile) ── */
+.nav-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.60);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 299;
+}
+.nav-overlay.open { display: block; }
+
+/* ── Responsive — tablet ── */
 @media (max-width: 900px) {
-  .app-shell { grid-template-columns: 1fr; grid-template-areas: "header" "main"; }
-  .app-nav { display: none; }
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas: "header" "main";
+  }
+  /* Sidebar becomes a slide-in drawer */
+  .app-nav {
+    position: fixed; top: 0; left: 0;
+    width: 260px; height: 100vh;
+    z-index: 300;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    background: rgba(27,38,50,0.97);
+  }
+  .app-nav.mobile-open { transform: translateX(0); }
+  .mobile-menu-btn { display: flex; }
+  .logo-block { width: auto; border-right: none; }
+  .logo-sub { display: none; }
+  .header-center { display: none; }
+  .status-pill { display: none; }
   .draft-shell { grid-template-columns: 1fr; }
   .pipeline { grid-template-columns: 1fr 1fr; }
   .two-col, .three-col { grid-template-columns: 1fr; }
+}
+
+/* ── Responsive — mobile ── */
+@media (max-width: 640px) {
+  .pipeline { grid-template-columns: 1fr; }
+  .field-row, .field-row-3 { grid-template-columns: 1fr; }
+  .page-header {
+    flex-direction: column; align-items: flex-start; gap: 1rem;
+    padding: 1.2rem 1rem 1rem;
+  }
+  .page-content { padding: 1rem; }
+  .panel-body { padding: 1rem; }
+  .stat-row { grid-template-columns: repeat(2, 1fr); }
+  .cards { grid-template-columns: 1fr; }
+  .page-title { font-size: 20px; }
+  .section-title { font-size: 16px; }
+  .header-btn.primary { font-size: 11px; padding: 6px 12px; }
+  /* Splash scaling */
+  .splash-building { width: 200px; height: 200px; margin-bottom: 1.5rem; }
+  .building-svg { width: 185px; height: 185px; }
+  .splash-arcname { font-size: 42px; }
 }

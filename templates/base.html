@@ -253,6 +253,9 @@
 <!-- ── App Shell ── -->
 <div class="app-shell">
 
+  <!-- Nav overlay (mobile) -->
+  <div class="nav-overlay" id="navOverlay"></div>
+
   <!-- Header -->
   <header class="app-header">
     <div class="logo-block">
@@ -262,6 +265,9 @@
         <div class="logo-sub">Aldar · Comms Intelligence</div>
       </div>
     </div>
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open navigation">
+      <i class="fa-solid fa-bars"></i>
+    </button>
     <div class="header-center">
       <div class="global-search">
         <span class="search-icon">⌕</span>
@@ -386,6 +392,39 @@
     // Auto-advance after 7 s
     window.__splashTimer = setTimeout(window.__enterArc, 7000);
   }
+})();
+</script>
+
+<!-- Mobile nav -->
+<script>
+(function () {
+  var btn     = document.getElementById('mobileMenuBtn');
+  var nav     = document.querySelector('.app-nav');
+  var overlay = document.getElementById('navOverlay');
+  if (!btn || !nav || !overlay) return;
+
+  function openNav() {
+    nav.classList.add('mobile-open');
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    btn.querySelector('i').className = 'fa-solid fa-xmark';
+  }
+  function closeNav() {
+    nav.classList.remove('mobile-open');
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+    btn.querySelector('i').className = 'fa-solid fa-bars';
+  }
+
+  btn.addEventListener('click', function () {
+    nav.classList.contains('mobile-open') ? closeNav() : openNav();
+  });
+  overlay.addEventListener('click', closeNav);
+
+  // Close on nav link tap (mobile navigation)
+  nav.querySelectorAll('.nav-link').forEach(function (link) {
+    link.addEventListener('click', closeNav);
+  });
 })();
 </script>
 

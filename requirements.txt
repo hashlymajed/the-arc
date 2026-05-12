@@ -10,3 +10,4 @@ langchain-chroma>=0.1
 langchain-text-splitters>=0.2
 chromadb>=0.5
 python-dotenv>=1.0
+itsdangerous>=2.1

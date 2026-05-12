@@ -343,6 +343,19 @@
         <span class="text-muted" style="font-size:10px">Gemini 2.5 Flash</span>
         <span class="text-gold" style="font-size:10px">●</span>
       </div>
+      {% if request.state and request.state.user %}
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(238,233,223,0.08)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="min-width:0">
+            <div style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ request.state.user.name }}</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:capitalize">{{ request.state.user.role }}</div>
+          </div>
+          <a href="/logout" title="Sign out" style="color:var(--muted);text-decoration:none;flex-shrink:0;transition:color 0.15s" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--muted)'">
+            <i class="fa-solid fa-arrow-right-from-bracket" style="font-size:13px"></i>
+          </a>
+        </div>
+      </div>
+      {% endif %}
     </div>
   </nav>
 

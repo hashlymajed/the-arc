@@ -4,15 +4,20 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
 BASE_DIR   = Path(__file__).parent
 TEMPLATES  = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 app = FastAPI(title="The Arc", docs_url=None, redoc_url=None)
+app.add_middleware(SessionMiddleware, secret_key=os.getenv('SECRET_KEY', 'arc-dev-secret-2026'))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+from api.auth_routes import router as auth_router
+app.include_router(auth_router)
 
 from api.media_routes import router as media_router
 app.include_router(media_router)
@@ -22,6 +27,34 @@ app.include_router(meetings_router)
 
 from api.meltwater_routes import router as meltwater_router
 app.include_router(meltwater_router)
+
+_PUBLIC = ("/login", "/api/auth/login", "/static")
+
+@app.middleware("http")
+async def auth_guard(request: Request, call_next):
+    path = request.url.path
+    if any(path.startswith(p) for p in _PUBLIC):
+        return await call_next(request)
+    uid = request.session.get('user_id')
+    if not uid:
+        return RedirectResponse("/login", status_code=302)
+    request.state.user = {
+        'id':   uid,
+        'name': request.session.get('user_name', ''),
+        'role': request.session.get('user_role', 'user'),
+    }
+    return await call_next(request)
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    if request.session.get('user_id'):
+        return RedirectResponse("/", status_code=302)
+    return TEMPLATES.TemplateResponse(request, "login.html", {})
+
+@app.get("/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse("/login", status_code=302)
 
 # Lazy imports — only load heavy libs when first needed
 def get_db():

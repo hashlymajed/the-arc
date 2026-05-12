@@ -1,7 +1,9 @@
 import sqlite3, os
 from datetime import datetime
+from pathlib import Path
 
-DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'arc.db')
+_DATA_DIR = Path(os.getenv('DATA_DIR', str(Path(__file__).parent.parent / 'data')))
+DB_PATH   = str(_DATA_DIR / 'arc.db')
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)

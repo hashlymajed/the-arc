@@ -1,8 +1,9 @@
 """Media Relations database layer."""
 import sqlite3, json, os
 from datetime import datetime
+from pathlib import Path
 
-DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'arc.db')
+DB_PATH = str(Path(os.getenv('DATA_DIR', str(Path(__file__).parent.parent / 'data'))) / 'arc.db')
 
 
 def _get_conn():

@@ -1,8 +1,8 @@
 """Meltwater sync state database."""
-import sqlite3
+import os, sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "arc.db"
+DB_PATH = Path(os.getenv('DATA_DIR', str(Path(__file__).parent.parent / 'data'))) / 'arc.db'
 
 
 def _conn():

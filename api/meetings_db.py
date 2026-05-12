@@ -1,8 +1,8 @@
 """Meeting Intelligence database layer."""
-import json, sqlite3
+import json, os, sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "arc.db"
+DB_PATH = Path(os.getenv('DATA_DIR', str(Path(__file__).parent.parent / 'data'))) / 'arc.db'
 
 
 def _conn():

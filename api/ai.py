@@ -86,8 +86,61 @@ def _parse_json(raw: str) -> dict | list:
     raw = re.sub(r'\s*```$', '', raw)
     m = re.search(r'[\[{].*[\]}]', raw, re.DOTALL)
     if m:
-        return json.loads(m.group(0))
-    raise ValueError("No JSON found in model response")
+        candidate = m.group(0)
+    else:
+        # Truncated response with no closing bracket — take from first opener to end
+        start = next((i for i, c in enumerate(raw) if c in '{['), -1)
+        if start < 0:
+            raise ValueError("No JSON found in model response")
+        candidate = raw[start:]
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        return json.loads(_repair_json(candidate))
+
+
+def _repair_json(s: str) -> str:
+    # Strip trailing commas before } or ]
+    s = re.sub(r',(\s*[}\]])', r'\1', s)
+    # Walk the string honoring strings/escapes, tracking bracket depth,
+    # and truncate to the last balanced close. Then close any still-open
+    # brackets so truncated Gemini output still parses.
+    stack: list[str] = []
+    in_str = False
+    esc = False
+    last_balanced = -1
+    for i, ch in enumerate(s):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch in '{[':
+            stack.append('}' if ch == '{' else ']')
+        elif ch in '}]':
+            if stack and stack[-1] == ch:
+                stack.pop()
+                if not stack:
+                    last_balanced = i
+    if not stack and last_balanced >= 0:
+        return s[:last_balanced + 1]
+    # Truncated: cut at last safe boundary, drop trailing partial token, close stack
+    cut = s
+    if in_str:
+        # Drop the unterminated string entirely
+        last_quote = cut.rfind('"')
+        if last_quote >= 0:
+            cut = cut[:last_quote]
+    # Trim partial trailing token (e.g. ': "abc' or ', "key')
+    cut = re.sub(r'[,:]\s*"[^"]*$', '', cut)
+    cut = re.sub(r'[,:]\s*[^}\],\s]*$', '', cut)
+    cut = cut.rstrip().rstrip(',')
+    return cut + ''.join(reversed(stack))
 
 
 # ── Draft generation ──────────────────────────────────────────────
@@ -271,7 +324,14 @@ async def analyze(vault_docs: list[dict], settings: dict,
         _async_call(prompt_c),
     )
 
-    d1, d2, d3 = _parse_json(r1), _parse_json(r2), _parse_json(r3)
+    def _safe_parse(raw: str) -> dict:
+        try:
+            out = _parse_json(raw)
+            return out if isinstance(out, dict) else {}
+        except Exception:
+            return {}
+
+    d1, d2, d3 = _safe_parse(r1), _safe_parse(r2), _safe_parse(r3)
 
     return {
         'themes':           d1.get('themes', []),

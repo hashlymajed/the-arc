@@ -8,10 +8,15 @@ arc.db
 data/chroma_db/
 *.spec
 dist/
+build/
 .claude/
+.claude-flow/
 .gemini/
 .mcp.json
-.claude-flow/
 agentdb.rvf
 agentdb.rvf.lock
 ruvector.db
+.DS_Store
+*.egg-info/
+.pytest_cache/
+.swarm/

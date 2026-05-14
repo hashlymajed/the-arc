@@ -82,7 +82,7 @@ async def dashboard(request: Request):
     s = get_settings()
 
     # news preview from existing SQLite
-    news_db = s.get('news_db_path') or os.path.expanduser("~/news_agent/news_articles.db")
+    news_db = s.get('news_db_path') or str(BASE_DIR / "data" / "news_articles.db")
     recent_news = []
     try:
         conn = sqlite3.connect(news_db)
@@ -180,7 +180,7 @@ async def vault_page(request: Request, q: str = ""):
 @app.get("/news", response_class=HTMLResponse)
 async def news_page(request: Request):
     s = _settings()
-    news_db = s.get('news_db_path') or os.path.expanduser("~/news_agent/news_articles.db")
+    news_db = s.get('news_db_path') or str(BASE_DIR / "data" / "news_articles.db")
     articles, year_list, total = [], [], 0
     try:
         conn = sqlite3.connect(news_db)
@@ -308,6 +308,7 @@ async def meltwater_page(request: Request):
     return TEMPLATES.TemplateResponse(request, "meltwater.html", {
         "active": "meltwater", "draft_count": None, "pending_count": None,
     })
+
 
 @app.get("/archive", response_class=HTMLResponse)
 async def archive_page(request: Request):
@@ -482,6 +483,33 @@ async def api_remove_draft_tag(draft_id: int, tag_id: int):
     return {"ok": True}
 
 
+@app.get("/api/vault/debug")
+async def api_vault_debug():
+    from api import vault
+    s = _settings()
+    resolved = vault._resolve_vault_path(s)
+    info = {
+        'cwd': os.getcwd(),
+        'vault_py_file': vault.__file__,
+        'env_VAULT_PATH': os.environ.get('VAULT_PATH'),
+        'settings_vault_path': s.get('vault_path'),
+        'DEFAULT_VAULT_PATH': vault.DEFAULT_VAULT_PATH,
+        '_BUNDLED_PATH': vault._BUNDLED_PATH,
+        'resolved_vault_path': resolved,
+        'resolved_exists': os.path.isdir(resolved),
+        'bundled_exists': os.path.isdir(vault._BUNDLED_PATH),
+        'app_listing': sorted(os.listdir('/app'))[:30] if os.path.isdir('/app') else None,
+    }
+    if os.path.isdir(resolved):
+        try:
+            info['resolved_listing'] = sorted(os.listdir(resolved))[:30]
+            md_count = sum(1 for r,_,fs in os.walk(resolved) for f in fs if f.endswith('.md'))
+            info['md_count'] = md_count
+        except Exception as e:
+            info['error'] = str(e)
+    return info
+
+
 @app.get("/api/vault/search")
 async def api_vault_search(q: str):
     from api.vault import search as vault_search
@@ -500,18 +528,23 @@ async def api_vault_rebuild():
     s = _settings()
     try:
         vault._build_store(
-            s.get('vault_path') or vault.DEFAULT_VAULT_PATH,
+            vault._resolve_vault_path(s),
             s.get('vector_db_path') or vault.DEFAULT_VECTOR_PATH,
             s.get('gemini_api_key') or os.getenv('GEMINI_API_KEY','')
         )
         return {'ok': True, 'message': 'Index rebuilt successfully'}
     except Exception as e:
-        return JSONResponse({'ok': False, 'message': str(e)}, status_code=500)
+        msg = str(e)
+        if '429' in msg or 'RESOURCE_EXHAUSTED' in msg or 'quota' in msg.lower():
+            msg = ("Gemini embedding quota hit. The free tier for gemini-embedding-001 "
+                   "is ~5 requests/minute. Wait a few minutes and try again, or enable "
+                   "billing in Google AI Studio for higher limits.")
+        return JSONResponse({'ok': False, 'message': msg}, status_code=500)
 
 @app.get("/api/news/{article_id}")
 async def api_get_news(article_id: int):
     s = _settings()
-    news_db = s.get('news_db_path') or os.path.expanduser("~/news_agent/news_articles.db")
+    news_db = s.get('news_db_path') or str(BASE_DIR / "data" / "news_articles.db")
     try:
         conn = sqlite3.connect(news_db)
         conn.row_factory = sqlite3.Row
@@ -525,11 +558,15 @@ async def api_get_news(article_id: int):
 @app.post("/api/news/scrape")
 async def api_scrape_news():
     import subprocess, sys
-    scraper = os.path.expanduser("~/news_agent/scraper.py")
+    scraper = str(BASE_DIR / "scripts" / "scraper.py")
     if not os.path.exists(scraper):
-        return JSONResponse({'message': 'Scraper not found at ~/news_agent/scraper.py'}, status_code=404)
-    subprocess.Popen([sys.executable, scraper], cwd=os.path.expanduser("~/news_agent"))
-    return {'message': 'Scraper started in background — check ~/news_agent/scraper.log'}
+        return JSONResponse({'message': 'Scraper script not found.'}, status_code=404)
+    news_db = str(BASE_DIR / "data" / "news_articles.db")
+    try:
+        subprocess.Popen([sys.executable, scraper], cwd=str(BASE_DIR / "scripts"), env={**os.environ, 'NEWS_DB': news_db})
+        return {'message': 'Scraper started in background — new articles will appear on refresh'}
+    except Exception as e:
+        return JSONResponse({'message': f'Scraper could not start: {e}'}, status_code=500)
 
 @app.get("/api/settings")
 async def api_get_settings():
@@ -557,7 +594,7 @@ def _count_vault_docs(settings: dict) -> int:
     except Exception: return 0
 
 def _count_news(settings: dict) -> int:
-    news_db = settings.get('news_db_path') or os.path.expanduser("~/news_agent/news_articles.db")
+    news_db = settings.get('news_db_path') or str(BASE_DIR / "data" / "news_articles.db")
     try:
         conn = sqlite3.connect(news_db)
         count = conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]

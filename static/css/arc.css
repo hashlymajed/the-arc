@@ -628,3 +628,64 @@ body::after {
   .building-svg { width: 185px; height: 185px; }
   .splash-arcname { font-size: 42px; }
 }
+
+/* ── Light Mode ── */
+[data-theme="light"] {
+  --bg:      #F5F5F3;
+  --surface:  rgba(0, 0, 0, 0.04);
+  --surface2: rgba(0, 0, 0, 0.07);
+  --surface3: rgba(0, 0, 0, 0.12);
+  --border:   rgba(0, 0, 0, 0.08);
+  --border2:  rgba(0, 0, 0, 0.18);
+  --text:     #0D0D0D;
+  --muted:    #6B6B6B;
+  --muted2:   #3D3D3D;
+  --gold:     #0D0D0D;
+  --gold2:    #3D3D3D;
+  --teal:     #5A5A5A;
+  --blue:     #EBEBEA;
+  --blue2:    #F5F5F3;
+  --red:      #c0392b;
+  --green:    #27ae60;
+  --orange:   #0D0D0D;
+  --purple:   #555555;
+}
+
+[data-theme="light"] body { background: var(--bg); }
+
+[data-theme="light"] body::before {
+  background:
+    radial-gradient(ellipse at 80% 95%, rgba(0,0,0,0.03) 0%, transparent 45%),
+    radial-gradient(ellipse at 10% 5%,  rgba(0,0,0,0.02) 0%, transparent 50%);
+}
+
+[data-theme="light"] body::after { opacity: 0.10; }
+
+[data-theme="light"] .app-header {
+  background: rgba(245, 245, 243, 0.95);
+  border-bottom-color: rgba(0,0,0,0.10);
+}
+
+[data-theme="light"] .app-nav {
+  background: rgba(245, 245, 243, 0.92);
+  border-right-color: rgba(0,0,0,0.10);
+}
+
+[data-theme="light"] .nav-link:hover { background: rgba(0,0,0,0.04); }
+[data-theme="light"] .nav-link.active { background: rgba(0,0,0,0.06); border-left-color: #0D0D0D; }
+
+[data-theme="light"] .card-index { color: rgba(0,0,0,0.04); }
+[data-theme="light"] .card:hover { box-shadow: 0 12px 36px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.06); }
+
+[data-theme="light"] .field select option { background: #F5F5F3; color: #0D0D0D; }
+
+[data-theme="light"] .btn.primary,
+[data-theme="light"] .header-btn.primary { color: #F5F5F3; }
+
+[data-theme="light"] .logo-mark { background: rgba(0,0,0,0.08); }
+[data-theme="light"] .arc-table tr:hover td { background: rgba(0,0,0,0.02); }
+[data-theme="light"] .intel-item:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+
+@media (max-width: 900px) {
+  [data-theme="light"] .app-nav { background: rgba(245,245,243,0.98); }
+}

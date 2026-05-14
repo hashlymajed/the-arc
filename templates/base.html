@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <script>(function(){var t=localStorage.getItem('arc-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}The Arc{% endblock %} · Aldar</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -256,6 +257,7 @@
   <!-- Nav overlay (mobile) -->
   <div class="nav-overlay" id="navOverlay"></div>
 
+
   <!-- Header -->
   <header class="app-header">
     <div class="logo-block">
@@ -279,6 +281,9 @@
         <div class="status-dot live" id="systemDot"></div>
         <span id="systemStatus">System Ready</span>
       </div>
+      <button class="header-btn theme-toggle" id="themeToggle" onclick="arcToggleTheme()" title="Toggle light/dark" style="padding:7px 11px;min-width:0">
+        <i class="fa-solid fa-sun" id="themeIcon"></i>
+      </button>
       <a href="/draft/new" class="header-btn primary">+ New Draft</a>
     </div>
   </header>
@@ -428,6 +433,27 @@
 })();
 </script>
 
+
+<script>
+(function(){
+  var icon = document.getElementById('themeIcon');
+  if(document.documentElement.getAttribute('data-theme')==='light' && icon)
+    icon.className='fa-solid fa-moon';
+
+  window.arcToggleTheme = function(){
+    var isLight = document.documentElement.getAttribute('data-theme')==='light';
+    var next = isLight ? 'dark' : 'light';
+    if(next==='light'){
+      document.documentElement.setAttribute('data-theme','light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    localStorage.setItem('arc-theme', next);
+    var ic = document.getElementById('themeIcon');
+    if(ic) ic.className = next==='light' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+  };
+})();
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
